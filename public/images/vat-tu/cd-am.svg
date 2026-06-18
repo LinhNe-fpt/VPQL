@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <rect width="80" height="80" rx="12" fill="#DBEAFE"/>
+  <path d="M18 48c8-14 36-14 44 0" stroke="#2563EB" stroke-width="4" stroke-linecap="round"/>
+  <path d="M28 48v6h24v-6" fill="#3B82F6"/>
+  <text x="40" y="72" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="9" fill="#1D4ED8">Áo m°a</text>
+</svg>

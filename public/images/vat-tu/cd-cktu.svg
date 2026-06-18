@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <rect width="80" height="80" rx="12" fill="#F3E8FF"/>
+  <rect x="26" y="24" width="28" height="18" rx="3" fill="#9333EA"/>
+  <rect x="30" y="44" width="20" height="14" rx="2" fill="#C084FC"/>
+  <text x="40" y="72" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="7" fill="#6B21A8">Chìa khóa tç</text>
+</svg>

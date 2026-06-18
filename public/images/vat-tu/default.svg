@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <rect width="80" height="80" rx="12" fill="#F1F5F9"/>
+  <rect x="22" y="22" width="36" height="36" rx="8" stroke="#94A3B8" stroke-width="2" stroke-dasharray="4 3"/>
+  <path d="M34 40h12M40 34v12" stroke="#64748B" stroke-width="2" stroke-linecap="round"/>
+  <text x="40" y="72" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#475569">V­t t°</text>
+</svg>

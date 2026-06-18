@@ -1,0 +1,372 @@
+/* ── Xiaomi supergraphic login ── */
+
+:root {
+  --mi-orange: #ff6900;
+  --mi-orange-light: #ff8534;
+  --mi-orange-pale: #fff4eb;
+  --mi-gray-bg: #f7f7f7;
+  --mi-gray-line: rgba(0, 0, 0, 0.06);
+}
+
+.xiaomi-login-root {
+  background: linear-gradient(165deg, #ffffff 0%, var(--mi-gray-bg) 48%, #f0f0f0 100%);
+  color: #1a1a1a;
+}
+
+/* ── Supergraphic layers ── */
+.xiaomi-supergraphic {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.xiaomi-supergraphic--scene {
+  inset: 0;
+}
+
+.xiaomi-supergraphic--fullscreen {
+  inset: 0;
+}
+
+.xiaomi-supergraphic__svg {
+  position: absolute;
+  width: 110%;
+  height: 110%;
+  left: -8%;
+  top: -5%;
+  max-width: none;
+}
+
+.xiaomi-supergraphic__band--main {
+  animation: mi-band-drift 18s ease-in-out infinite alternate;
+}
+
+.xiaomi-supergraphic__band--soft {
+  animation: mi-band-drift 22s ease-in-out infinite alternate-reverse;
+}
+
+.xiaomi-supergraphic__ring {
+  animation: mi-ring-pulse 10s ease-in-out infinite;
+}
+
+.xiaomi-supergraphic__ring--2 {
+  animation: mi-ring-pulse 10s ease-in-out infinite reverse;
+}
+
+.xiaomi-supergraphic__arc {
+  animation: mi-arc-shift 14s ease-in-out infinite alternate;
+}
+
+.xiaomi-supergraphic__arc--2 {
+  animation: mi-arc-shift 16s ease-in-out infinite alternate-reverse;
+}
+
+.xiaomi-supergraphic__tiles {
+  position: absolute;
+  inset: 0;
+}
+
+.xiaomi-supergraphic__tile {
+  position: absolute;
+  border-radius: 22%;
+  border: 2px solid rgba(255, 105, 0, 0.14);
+  background: linear-gradient(145deg, rgba(255, 105, 0, 0.07), rgba(255, 105, 0, 0.02));
+  animation: mi-tile-float 12s ease-in-out infinite;
+}
+
+.xiaomi-supergraphic__tile--1 {
+  width: 72px;
+  height: 72px;
+  left: 14%;
+  top: 22%;
+  animation-delay: 0s;
+}
+
+.xiaomi-supergraphic__tile--2 {
+  width: 48px;
+  height: 48px;
+  left: 28%;
+  top: 58%;
+  border-radius: 24%;
+  opacity: 0.7;
+  animation-delay: -4s;
+}
+
+.xiaomi-supergraphic__tile--3 {
+  width: 36px;
+  height: 36px;
+  left: 8%;
+  top: 68%;
+  border-radius: 26%;
+  opacity: 0.55;
+  animation-delay: -7s;
+}
+
+.xiaomi-supergraphic__orb {
+  position: absolute;
+  width: min(52vw, 340px);
+  height: min(52vw, 340px);
+  left: 8%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 32%,
+    rgba(255, 180, 120, 0.35) 0%,
+    rgba(255, 105, 0, 0.12) 42%,
+    transparent 68%
+  );
+  filter: blur(1px);
+  animation: mi-orb-glow 8s ease-in-out infinite alternate;
+}
+
+@media (min-width: 1024px) {
+  .xiaomi-supergraphic__orb {
+    left: 6%;
+    width: min(42vw, 400px);
+    height: min(42vw, 400px);
+  }
+
+  .xiaomi-supergraphic__tile--1 {
+    width: 96px;
+    height: 96px;
+    left: 18%;
+    top: 18%;
+  }
+}
+
+@keyframes mi-band-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(2%, -1.5%, 0); }
+}
+
+@keyframes mi-ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.03); opacity: 0.85; }
+}
+
+@keyframes mi-arc-shift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(1.5%, -2%, 0); }
+}
+
+@keyframes mi-tile-float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%      { transform: translate3d(6px, -10px, 0) rotate(3deg); }
+}
+
+@keyframes mi-orb-glow {
+  from { opacity: 0.75; transform: translateY(-50%) scale(1); }
+  to   { opacity: 1; transform: translateY(-50%) scale(1.04); }
+}
+
+.xiaomi-supergraphic--static .xiaomi-supergraphic__band--main,
+.xiaomi-supergraphic--static .xiaomi-supergraphic__band--soft,
+.xiaomi-supergraphic--static .xiaomi-supergraphic__ring,
+.xiaomi-supergraphic--static .xiaomi-supergraphic__ring--2,
+.xiaomi-supergraphic--static .xiaomi-supergraphic__arc,
+.xiaomi-supergraphic--static .xiaomi-supergraphic__arc--2,
+.xiaomi-supergraphic--static .xiaomi-supergraphic__tile,
+.xiaomi-supergraphic--static .xiaomi-supergraphic__orb {
+  animation: none;
+}
+
+.xiaomi-login-scene {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.xiaomi-login-card {
+  padding: 2rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--mi-gray-line);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 16px 48px -12px rgba(0, 0, 0, 0.1);
+}
+
+.xiaomi-login-logo {
+  background: var(--mi-orange);
+  box-shadow: 0 8px 24px -6px rgba(255, 105, 0, 0.45);
+}
+
+/* ── Login transition (Mi supergraphic flight) ── */
+.mi-transition-root {
+  background: linear-gradient(165deg, #ffffff 0%, var(--mi-gray-bg) 100%);
+  overflow: hidden;
+  animation: mi-t-root-in 0.22s ease-out both;
+}
+
+.mi-transition-camera {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: min(88vw, 460px);
+  height: min(88vw, 460px);
+  transform: translate3d(-50%, -50%, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  isolation: isolate;
+  animation: mi-t-pan 1.85s cubic-bezier(0.22, 0.85, 0.32, 1) forwards;
+}
+
+.mi-transition-camera-zoom {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  animation: mi-t-zoom 1.85s cubic-bezier(0.22, 0.85, 0.32, 1) forwards;
+}
+
+.mi-transition-camera .xiaomi-supergraphic {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.mi-transition-ui {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(90vw, 320px);
+  text-align: center;
+  z-index: 20;
+}
+
+.mi-transition-status {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  letter-spacing: 0.02em;
+  animation: mi-t-status-in 0.35s var(--ease-fluid) both;
+}
+
+.mi-transition-welcome-badge {
+  margin: 0 auto 0.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--mi-orange);
+  color: white;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 24px rgba(255, 105, 0, 0.45);
+  animation: mi-t-badge 0.4s var(--ease-fluid) both;
+}
+
+.mi-transition-user {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.mi-transition-avatar {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: rgba(255, 105, 0, 0.12);
+  border: 1px solid rgba(255, 105, 0, 0.28);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--mi-orange);
+}
+
+.mi-transition-progress {
+  margin-top: 1rem;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.mi-transition-progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff8534, var(--mi-orange), #ff6900);
+  will-change: width;
+  animation: mi-t-progress 2s cubic-bezier(0.22, 0.85, 0.32, 1) forwards;
+}
+
+@keyframes mi-t-root-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Pan sang trái — tách khỏi scale để GPU mượt hơn */
+@keyframes mi-t-pan {
+  0% {
+    transform: translate3d(-50%, -50%, 0);
+  }
+  100% {
+    transform: translate3d(-108%, -50%, 0);
+  }
+}
+
+/* Zoom nhẹ + fade — không blur, không scale cực lớn */
+@keyframes mi-t-zoom {
+  0% {
+    transform: scale3d(1, 1, 1);
+    opacity: 1;
+  }
+  55% {
+    transform: scale3d(2.2, 2.2, 1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale3d(4.2, 4.2, 1);
+    opacity: 0;
+  }
+}
+
+@keyframes mi-t-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mi-t-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+@keyframes mi-t-badge {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xiaomi-supergraphic__band--main,
+  .xiaomi-supergraphic__band--soft,
+  .xiaomi-supergraphic__ring,
+  .xiaomi-supergraphic__ring--2,
+  .xiaomi-supergraphic__arc,
+  .xiaomi-supergraphic__arc--2,
+  .xiaomi-supergraphic__tile,
+  .xiaomi-supergraphic__orb,
+  .mi-transition-root,
+  .mi-transition-camera,
+  .mi-transition-camera-zoom {
+    animation: none;
+  }
+
+  .mi-transition-camera {
+    opacity: 0;
+  }
+}
