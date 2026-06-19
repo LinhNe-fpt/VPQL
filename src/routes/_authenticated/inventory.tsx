@@ -194,9 +194,12 @@ function InventoryPage() {
               <Package className="size-3.5" /> Mở danh mục
             </Link>
             <div className="h-6 w-px bg-border mx-1" />
-            <button className="h-8 px-2.5 rounded-md text-[12px] font-medium flex items-center gap-1.5 hover:bg-muted/80 text-foreground/80">
+            <Link
+              to="/kiem-ke"
+              className="h-8 px-2.5 rounded-md text-[12px] font-medium flex items-center gap-1.5 hover:bg-muted/80 text-foreground/80"
+            >
               <History className="size-3.5" /> Xem lịch sử biến động
-            </button>
+            </Link>
             <button onClick={() => setSelected(null)} className="ml-1 size-7 rounded-md hover:bg-muted text-muted-foreground text-[14px]">×</button>
           </div>
         </div>

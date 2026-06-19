@@ -3,12 +3,24 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Topbar } from "@/components/topbar";
+import {
+  buildReportDocRef,
+  ReportAlertBox,
+  ReportDataTable,
+  ReportDocumentFooter,
+  ReportDocumentHeader,
+  ReportEmptyState,
+  ReportKpiCard,
+  ReportKpiGrid,
+  ReportSectionTitle,
+} from "@/components/report-document";
+import { ReportPrintStyles } from "@/components/report-print-styles";
 import { getReportData } from "@/lib/api/reports.functions";
-import { useClientSession } from "@/lib/auth";
+import { getIssuerName, useClientSession } from "@/lib/auth";
+import { getAppLocale, type AppLocale } from "@/lib/i18n";
 import { exportReportExcel } from "@/lib/report-excel";
 import {
   REPORT_LOAI_OPTIONS,
-  REPORT_TEMPLATES,
   buildExecutiveSummary,
   buildPeriodLabel,
   deptFilterOptions,
@@ -23,6 +35,13 @@ import {
   type ReportMeta,
   type ReportTemplateId,
 } from "@/lib/report-workspace";
+import {
+  reportBi,
+  reportTemplateBi,
+  REPORT_BI,
+  REPORT_TEMPLATE_BI,
+  voucherLabelBi,
+} from "@/lib/report-i18n";
 import { formatBoPhanLabel } from "@/lib/bo-phan";
 import type { ReportLineRow } from "@/lib/vpp-queries.server";
 import { VOUCHER_LABEL, type VatTuRow, type VoucherType } from "@/lib/types/vpp";
@@ -56,8 +75,23 @@ const TEMPLATE_ICONS: Record<ReportTemplateId, React.ReactNode> = {
   distribution: <Shirt className="size-4" />,
 };
 
+const TEMPLATE_IDS: ReportTemplateId[] = ["executive", "transactions", "inventory", "distribution"];
+
+function templateUiLabel(id: ReportTemplateId, locale: AppLocale): string {
+  const bi = REPORT_TEMPLATE_BI[id];
+  return locale === "ko" ? bi.label.ko : bi.label.vi;
+}
+
+function templateUiDesc(id: ReportTemplateId, locale: AppLocale): string {
+  const bi = REPORT_TEMPLATE_BI[id];
+  const primary = locale === "ko" ? bi.description.ko : bi.description.vi;
+  const alt = locale === "ko" ? bi.label.vi : bi.label.ko;
+  return `${primary} · ${alt}`;
+}
+
 function ReportsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = getAppLocale();
   const session = useClientSession();
   const { data, isLoading } = useQuery({
     queryKey: ["reports"],
@@ -72,7 +106,7 @@ function ReportsPage() {
     nhom: "ALL",
     loai: "ALL",
   });
-  const [title, setTitle] = useState("Báo cáo tổng hợp kho vật tư");
+  const [title, setTitle] = useState(() => reportTemplateBi("executive", "title"));
 
   const lines = data?.lines ?? [];
   const vouchers = data?.vouchers ?? [];
@@ -80,7 +114,12 @@ function ReportsPage() {
   const quotaAlerts = data?.quotaAlerts ?? [];
   const boPhan = data?.boPhan ?? [];
 
-  const deptOptions = useMemo(() => deptFilterOptions(boPhan), [boPhan]);
+  const deptOptions = useMemo(() => {
+    const opts = deptFilterOptions(boPhan);
+    return opts.map((d) =>
+      d.value === "ALL" ? { ...d, label: t("pages.reports.allDepts") } : d,
+    );
+  }, [boPhan, t, i18n.language]);
 
   const nhomOptions = useMemo(() => {
     const set = new Set(lines.map((l) => l.nhomHang).filter(Boolean) as string[]);
@@ -96,11 +135,13 @@ function ReportsPage() {
     () => ({
       title,
       periodLabel: buildPeriodLabel(filters.dateFrom, filters.dateTo),
-      preparedBy: session?.displayName ?? session?.username ?? "Thủ kho",
+      preparedBy: getIssuerName(session),
       generatedAt: new Date().toLocaleString("vi-VN", { hour12: false }),
     }),
     [title, filters.dateFrom, filters.dateTo, session],
   );
+
+  const docRef = useMemo(() => buildReportDocRef(template), [template]);
 
   const executive = useMemo(
     () => buildExecutiveSummary(filteredLines, vouchers, vatTu, quotaAlerts, boPhan),
@@ -113,8 +154,7 @@ function ReportsPage() {
 
   function handleTemplateChange(id: ReportTemplateId) {
     setTemplate(id);
-    const tpl = REPORT_TEMPLATES.find((x) => x.id === id);
-    if (tpl) setTitle(`Báo cáo ${tpl.label.toLowerCase()}`);
+    setTitle(reportTemplateBi(id, "title"));
   }
 
   function handleExport() {
@@ -132,49 +172,34 @@ function ReportsPage() {
 
   return (
     <>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          .report-print-root {
-            overflow: visible !important;
-            height: auto !important;
-            padding: 0 !important;
-            background: white !important;
-          }
-          .report-print-area {
-            box-shadow: none !important;
-            border: none !important;
-            max-width: none !important;
-            margin: 0 !important;
-            padding: 12mm !important;
-          }
-        }
-      `}</style>
+      <ReportPrintStyles />
 
       <div className="no-print">
         <Topbar title={t("pages.reports.title")} subtitle={t("pages.reports.subtitle")} />
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 xl:grid-cols-[360px_1fr] report-print-root">
-        {/* —— Cấu hình —— */}
         <aside className="no-print flex flex-col border-r border-border/70 bg-background/50 min-h-0 overflow-hidden">
           <div className="p-4 border-b border-border/70">
-            <h2 className="text-[13px] font-semibold tracking-tight">Không gian lập báo cáo</h2>
-            <p className="text-[11.5px] text-muted-foreground mt-0.5">Chọn mẫu, lọc dữ liệu và xuất file</p>
+            <h2 className="text-[13px] font-semibold tracking-tight">{t("pages.reports.workspaceTitle")}</h2>
+            <p className="text-[11.5px] text-muted-foreground mt-0.5">{t("pages.reports.workspaceDesc")}</p>
+            <p className="text-[10.5px] text-muted-foreground/90 mt-1.5">{t("pages.reports.bilingualNote")}</p>
           </div>
 
           <div className="flex-1 overflow-auto p-4 space-y-5">
             <section className="space-y-2">
-              <span className="text-[10.5px] uppercase font-semibold text-muted-foreground">Mẫu báo cáo</span>
+              <span className="text-[10.5px] uppercase font-semibold text-muted-foreground">
+                {t("pages.reports.templateSection")}
+              </span>
               <div className="space-y-2">
-                {REPORT_TEMPLATES.map((tpl) => (
+                {TEMPLATE_IDS.map((tplId) => (
                   <button
-                    key={tpl.id}
+                    key={tplId}
                     type="button"
-                    onClick={() => handleTemplateChange(tpl.id)}
+                    onClick={() => handleTemplateChange(tplId)}
                     className={[
                       "w-full text-left p-3 rounded-xl border transition-all",
-                      template === tpl.id
+                      template === tplId
                         ? "border-primary/40 bg-primary/8 shadow-sm"
                         : "border-border/70 bg-card hover:border-border hover:bg-muted/40",
                     ].join(" ")}
@@ -183,14 +208,16 @@ function ReportsPage() {
                       <span
                         className={[
                           "size-8 rounded-lg grid place-items-center shrink-0",
-                          template === tpl.id ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                          template === tplId ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
                         ].join(" ")}
                       >
-                        {TEMPLATE_ICONS[tpl.id]}
+                        {TEMPLATE_ICONS[tplId]}
                       </span>
                       <div className="min-w-0">
-                        <div className="text-[13px] font-semibold">{tpl.label}</div>
-                        <div className="text-[11px] text-muted-foreground leading-snug mt-0.5">{tpl.description}</div>
+                        <div className="text-[13px] font-semibold">{templateUiLabel(tplId, locale)}</div>
+                        <div className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+                          {templateUiDesc(tplId, locale)}
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -200,10 +227,10 @@ function ReportsPage() {
 
             <section className="space-y-3">
               <span className="text-[10.5px] uppercase font-semibold text-muted-foreground flex items-center gap-1">
-                <Calendar className="size-3" /> Kỳ báo cáo
+                <Calendar className="size-3" /> {t("pages.reports.periodSection")}
               </span>
               <div className="grid grid-cols-2 gap-2">
-                <ConfigField label="Từ ngày">
+                <ConfigField label={t("pages.reports.dateFrom")}>
                   <input
                     type="date"
                     value={filters.dateFrom}
@@ -211,7 +238,7 @@ function ReportsPage() {
                     className={inputCls}
                   />
                 </ConfigField>
-                <ConfigField label="Đến ngày">
+                <ConfigField label={t("pages.reports.dateTo")}>
                   <input
                     type="date"
                     value={filters.dateTo}
@@ -224,8 +251,8 @@ function ReportsPage() {
 
             {template !== "inventory" && (
               <section className="space-y-3">
-                <span className="text-[10.5px] uppercase font-semibold text-muted-foreground">Bộ lọc dữ liệu</span>
-                <ConfigField label="Ban bộ" icon={<Building2 className="size-3" />}>
+                <span className="text-[10.5px] uppercase font-semibold text-muted-foreground">{t("pages.reports.filtersSection")}</span>
+                <ConfigField label={t("pages.reports.dept")} icon={<Building2 className="size-3" />}>
                   <select value={filters.dept} onChange={(e) => patchFilters({ dept: e.target.value })} className={inputCls}>
                     {deptOptions.map((d) => (
                       <option key={d.value} value={d.value}>
@@ -234,16 +261,16 @@ function ReportsPage() {
                     ))}
                   </select>
                 </ConfigField>
-                <ConfigField label="Nhóm hàng">
+                <ConfigField label={t("pages.reports.nhom")}>
                   <select value={filters.nhom} onChange={(e) => patchFilters({ nhom: e.target.value })} className={inputCls}>
                     {nhomOptions.map((n) => (
                       <option key={n} value={n}>
-                        {n === "ALL" ? "Tất cả nhóm" : n}
+                        {n === "ALL" ? t("pages.reports.allNhom") : n}
                       </option>
                     ))}
                   </select>
                 </ConfigField>
-                <ConfigField label="Loại phiếu">
+                <ConfigField label={t("pages.reports.voucherType")}>
                   <select
                     value={filters.loai}
                     onChange={(e) => patchFilters({ loai: e.target.value as ReportFilters["loai"] })}
@@ -251,7 +278,7 @@ function ReportsPage() {
                   >
                     {REPORT_LOAI_OPTIONS.map((o) => (
                       <option key={o} value={o}>
-                        {o === "ALL" ? "Tất cả loại phiếu" : VOUCHER_LABEL[o as VoucherType]}
+                        {o === "ALL" ? t("pages.reports.allVoucherTypes") : voucherLabelBi(o as VoucherType, VOUCHER_LABEL[o as VoucherType])}
                       </option>
                     ))}
                   </select>
@@ -260,25 +287,25 @@ function ReportsPage() {
             )}
 
             {template === "inventory" && (
-              <ConfigField label="Nhóm hàng">
+              <ConfigField label={t("pages.reports.nhom")}>
                 <select value={filters.nhom} onChange={(e) => patchFilters({ nhom: e.target.value })} className={inputCls}>
                   {nhomOptions.map((n) => (
                     <option key={n} value={n}>
-                      {n === "ALL" ? "Tất cả nhóm" : n}
+                      {n === "ALL" ? t("pages.reports.allNhom") : n}
                     </option>
                   ))}
                 </select>
               </ConfigField>
             )}
 
-            <ConfigField label="Tiêu đề báo cáo">
+            <ConfigField label={t("pages.reports.reportTitle")}>
               <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
             </ConfigField>
           </div>
 
           <div className="p-4 border-t border-border/70 bg-muted/20 space-y-2">
             <div className="text-[11px] text-muted-foreground">
-              Người lập: <span className="font-medium text-foreground">{meta.preparedBy}</span>
+              {t("pages.reports.preparedByLabel")}: <span className="font-medium text-foreground">{meta.preparedBy}</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -286,7 +313,7 @@ function ReportsPage() {
                 onClick={() => window.print()}
                 className="h-9 rounded-lg border border-border bg-card text-[12px] font-medium hover:bg-muted flex items-center justify-center gap-1.5"
               >
-                <Printer className="size-3.5" /> In / PDF
+                <Printer className="size-3.5" /> {t("pages.reports.printPdf")}
               </button>
               <button
                 type="button"
@@ -294,24 +321,23 @@ function ReportsPage() {
                 disabled={isLoading}
                 className="h-9 rounded-lg bg-primary text-primary-foreground text-[12px] font-semibold hover:bg-primary-hover flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                <FileSpreadsheet className="size-3.5" /> Excel
+                <FileSpreadsheet className="size-3.5" /> {t("pages.reports.excel")}
               </button>
             </div>
           </div>
         </aside>
 
-        {/* —— Xem trước —— */}
-        <main className="overflow-auto p-4 md:p-6 bg-muted/20">
+        <main className="report-print-main overflow-auto p-4 md:p-6 bg-muted/20">
           {isLoading ? (
             <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground text-[13px]">
-              <Loader2 className="size-4 animate-spin" /> Đang tải dữ liệu báo cáo…
+              <Loader2 className="size-4 animate-spin" /> {t("pages.reports.loading")}
             </div>
           ) : (
             <div
               id="report-print-area"
               className="report-print-area max-w-4xl mx-auto bg-white text-foreground rounded-2xl border border-border/70 shadow-[var(--shadow-mica)] p-8 md:p-10 space-y-6"
             >
-              <ReportHeader meta={meta} template={template} />
+              <ReportDocumentHeader meta={meta} template={template} docRef={docRef} />
 
               {template === "executive" && <ExecutivePreview summary={executive} />}
               {template === "transactions" && <TransactionsPreview lines={filteredLines} />}
@@ -320,7 +346,7 @@ function ReportsPage() {
                 <DistributionPreview lines={filteredLines} summary={executive} />
               )}
 
-              <ReportFooter meta={meta} lineCount={filteredLines.length} skuCount={vatTu.length} />
+              <ReportDocumentFooter meta={meta} lineCount={filteredLines.length} skuCount={vatTu.length} />
             </div>
           )}
         </main>
@@ -351,91 +377,55 @@ function ConfigField({
   );
 }
 
-function ReportHeader({ meta, template }: { meta: ReportMeta; template: ReportTemplateId }) {
-  const tpl = REPORT_TEMPLATES.find((t) => t.id === template);
-  return (
-    <header className="border-b border-border/60 pb-5">
-      <div className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Stockflow · VPP & BHLĐ</div>
-      <h1 className="text-[24px] md:text-[28px] font-semibold tracking-tight mt-2 leading-tight">{meta.title}</h1>
-      <p className="text-[13px] text-muted-foreground mt-1">{tpl?.description}</p>
-      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-[12.5px]">
-        <span>
-          <span className="text-muted-foreground">Kỳ báo cáo:</span>{" "}
-          <span className="font-semibold">{meta.periodLabel}</span>
-        </span>
-        <span>
-          <span className="text-muted-foreground">Người lập:</span>{" "}
-          <span className="font-semibold">{meta.preparedBy}</span>
-        </span>
-        <span>
-          <span className="text-muted-foreground">Xuất lúc:</span>{" "}
-          <span className="font-semibold">{meta.generatedAt}</span>
-        </span>
-      </div>
-    </header>
-  );
-}
-
-function ReportFooter({
-  meta,
-  lineCount,
-  skuCount,
-}: {
-  meta: ReportMeta;
-  lineCount: number;
-  skuCount: number;
-}) {
-  return (
-    <footer className="border-t border-border/60 pt-4 text-[11px] text-muted-foreground space-y-1">
-      <p>
-        Báo cáo được lập từ hệ thống Stockflow · {lineCount} dòng giao dịch trong kỳ · {skuCount} mã hàng trong danh mục.
-      </p>
-      <p className="italic">Tài liệu nội bộ — {meta.preparedBy} · {meta.generatedAt}</p>
-    </footer>
-  );
-}
-
 function ExecutivePreview({ summary }: { summary: ReturnType<typeof buildExecutiveSummary> }) {
+  const alertItems: string[] = [];
+  if (summary.lowStockCount > 0) {
+    alertItems.push(
+      `${summary.lowStockCount} ${REPORT_BI.lowStockAlert.vi} / ${REPORT_BI.lowStockAlert.ko}`,
+    );
+  }
+  if (summary.quotaAlertCount > 0) {
+    alertItems.push(
+      `${summary.quotaAlertCount} ${REPORT_BI.quotaAlert.vi} / ${REPORT_BI.quotaAlert.ko}`,
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard icon={<TrendingDown className="size-4" />} label="Tổng nhập" value={fmtNum(summary.totalIn)} tone="info" />
-        <KpiCard icon={<TrendingUp className="size-4" />} label="Tổng xuất" value={fmtNum(summary.totalOut)} tone="success" />
-        <KpiCard icon={<PackageCheck className="size-4" />} label="Số phiếu" value={fmtNum(summary.voucherCount)} hint={`${summary.lineCount} dòng`} tone="primary" />
-        <KpiCard icon={<Building2 className="size-4" />} label="Ban bộ phát sinh" value={`${fmtNum(summary.deptCount)}/${fmtNum(summary.byDept.length)}`} hint="có giao dịch trong kỳ" tone="warning" />
-      </div>
+      <ReportKpiGrid cols={4}>
+        <ReportKpiCard icon={<TrendingDown className="size-4" />} label={reportBi("totalIn")} value={fmtNum(summary.totalIn)} tone="info" />
+        <ReportKpiCard icon={<TrendingUp className="size-4" />} label={reportBi("totalOut")} value={fmtNum(summary.totalOut)} tone="success" />
+        <ReportKpiCard
+          icon={<PackageCheck className="size-4" />}
+          label={reportBi("voucherCount")}
+          value={fmtNum(summary.voucherCount)}
+          hint={`${summary.lineCount} ${reportBi("lines")}`}
+          tone="primary"
+        />
+        <ReportKpiCard
+          icon={<Building2 className="size-4" />}
+          label={reportBi("deptActive")}
+          value={`${fmtNum(summary.deptCount)}/${fmtNum(summary.byDept.length)}`}
+          hint={reportBi("deptActiveHint")}
+          tone="warning"
+        />
+      </ReportKpiGrid>
 
-      {(summary.lowStockCount > 0 || summary.quotaAlertCount > 0) && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-4 flex gap-3">
-          <AlertTriangle className="size-5 text-amber-700 shrink-0 mt-0.5" />
-          <div className="text-[12.5px]">
-            <div className="font-semibold text-amber-900">Điểm cần lưu ý</div>
-            <ul className="mt-1 space-y-0.5 text-amber-900/90">
-              {summary.lowStockCount > 0 && (
-                <li>
-                  {summary.lowStockCount} mặt hàng đang ở hoặc dưới ngưỡng tồn tối thiểu
-                </li>
-              )}
-              {summary.quotaAlertCount > 0 && (
-                <li>{summary.quotaAlertCount} nhân viên tiêu hao định mức ≥ 75% trong tháng</li>
-              )}
-            </ul>
-          </div>
-        </div>
-      )}
+      {alertItems.length > 0 && <ReportAlertBox title={reportBi("alertTitle")} items={alertItems} />}
 
       <section>
-        <h2 className="text-[14px] font-semibold mb-3">Top hàng luân chuyển</h2>
-        <ReportTable
-          headers={["Mã hàng", "Tên vật tư", "Nhập", "Xuất", "ĐVT"]}
+        <ReportSectionTitle>{reportBi("topItems")}</ReportSectionTitle>
+        <ReportDataTable
+          headers={[reportBi("colItemCode"), reportBi("colItemName"), reportBi("colIn"), reportBi("colOut"), reportBi("colUnit")]}
           rows={summary.topItems.map((r) => [r.maHang, r.name, fmtNum(r.qtyIn), fmtNum(r.qtyOut), r.unit])}
+          numericColumns={[2, 3]}
         />
       </section>
 
       <section>
-        <h2 className="text-[14px] font-semibold mb-3">Luân chuyển theo ban bộ</h2>
-        <ReportTable
-          headers={["Mã", "Ban bộ", "Nhập", "Xuất", "Dòng"]}
+        <ReportSectionTitle>{reportBi("byDept")}</ReportSectionTitle>
+        <ReportDataTable
+          headers={[reportBi("colCode"), reportBi("colDept"), reportBi("colIn"), reportBi("colOut"), reportBi("colLineCount")]}
           rows={summary.byDept.map((d) => [
             d.maBoPhan,
             d.tenBoPhan,
@@ -444,6 +434,7 @@ function ExecutivePreview({ summary }: { summary: ReturnType<typeof buildExecuti
             d.lineCount > 0 ? fmtNum(d.lineCount) : "—",
           ])}
           dimZero={(row) => row[4] === "—"}
+          numericColumns={[2, 3, 4]}
         />
       </section>
     </div>
@@ -453,22 +444,35 @@ function ExecutivePreview({ summary }: { summary: ReturnType<typeof buildExecuti
 function TransactionsPreview({ lines }: { lines: ReportLineRow[] }) {
   return (
     <section>
-      <h2 className="text-[14px] font-semibold mb-3">Chi tiết giao dịch ({fmtNum(lines.length)} dòng)</h2>
+      <ReportSectionTitle>
+        {reportBi("transactionDetail")} ({fmtNum(lines.length)} {reportBi("lines")})
+      </ReportSectionTitle>
       {lines.length === 0 ? (
-        <EmptyReport hint="Không có giao dịch trong kỳ đã chọn." />
+        <ReportEmptyState hint={reportBi("noTransactions")} />
       ) : (
-        <ReportTable
-          headers={["Phiếu", "Loại", "Ngày", "Ban bộ", "Người nhận", "Mã hàng", "SL"]}
+        <ReportDataTable
+          headers={[
+            reportBi("colVoucher"),
+            reportBi("colType"),
+            reportBi("colDate"),
+            reportBi("colDept"),
+            reportBi("colRecipient"),
+            reportBi("colItemCode"),
+            reportBi("colQty"),
+          ]}
           rows={lines.map((l) => [
             l.soPhieu,
-            VOUCHER_LABEL[l.loaiPhieu as VoucherType] ?? l.loaiPhieu,
+            voucherLabelBi(l.loaiPhieu as VoucherType, VOUCHER_LABEL[l.loaiPhieu as VoucherType]),
             l.ngayLap.split(",")[0] ?? l.ngayLap,
-            l.maBoPhan ? formatBoPhanLabel({ maBoPhan: l.maBoPhan, tenBoPhan: l.tenBoPhan ?? l.maBoPhan }) : (l.tenBoPhan ?? "—"),
+            l.maBoPhan
+              ? formatBoPhanLabel({ maBoPhan: l.maBoPhan, tenBoPhan: l.tenBoPhan ?? l.maBoPhan })
+              : (l.tenBoPhan ?? "—"),
             l.recipient,
             l.maHang,
             fmtNum(l.soLuong),
           ])}
           compact
+          numericColumns={[6]}
         />
       )}
     </section>
@@ -481,13 +485,22 @@ function InventoryPreview({ rows }: { rows: VatTuRow[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-3">
-        <KpiCard icon={<Package className="size-4" />} label="Mã hàng" value={fmtNum(rows.length)} tone="primary" />
-        <KpiCard icon={<TrendingUp className="size-4" />} label="Giá trị tồn" value={fmtMoney(totalValue)} tone="success" />
-        <KpiCard icon={<AlertTriangle className="size-4" />} label="Sắp hết" value={fmtNum(lowCount)} tone="warning" />
-      </div>
-      <ReportTable
-        headers={["Mã", "Tên vật tư", "Nhóm", "Tồn", "Min", "Đơn giá", "Giá trị", "TT"]}
+      <ReportKpiGrid>
+        <ReportKpiCard icon={<Package className="size-4" />} label={reportBi("skuCount")} value={fmtNum(rows.length)} tone="primary" />
+        <ReportKpiCard icon={<TrendingUp className="size-4" />} label={reportBi("stockValue")} value={fmtMoney(totalValue)} tone="success" />
+        <ReportKpiCard icon={<AlertTriangle className="size-4" />} label={reportBi("lowStock")} value={fmtNum(lowCount)} tone="warning" />
+      </ReportKpiGrid>
+      <ReportDataTable
+        headers={[
+          reportBi("colCode"),
+          reportBi("colItemName"),
+          reportBi("colGroup"),
+          reportBi("colStock"),
+          reportBi("colMin"),
+          reportBi("colUnitPrice"),
+          reportBi("colValue"),
+          reportBi("colStatus"),
+        ]}
         rows={rows.map((v) => [
           v.maHang,
           v.tenSanPham,
@@ -499,6 +512,8 @@ function InventoryPreview({ rows }: { rows: VatTuRow[] }) {
           v.soLuongTon <= v.minStock ? "⚠" : "",
         ])}
         compact
+        numericColumns={[3, 4]}
+        alignments={["left", "left", "left", "center", "center", "right", "right", "center"]}
       />
     </div>
   );
@@ -513,14 +528,14 @@ function DistributionPreview({
 }) {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3">
-        <KpiCard icon={<TrendingUp className="size-4" />} label="Tổng xuất / thu hồi" value={fmtNum(summary.totalOut)} tone="success" />
-        <KpiCard icon={<PackageCheck className="size-4" />} label="Số phiếu" value={fmtNum(summary.voucherCount)} tone="primary" />
-      </div>
+      <ReportKpiGrid cols={2}>
+        <ReportKpiCard icon={<TrendingUp className="size-4" />} label={reportBi("totalOutReturn")} value={fmtNum(summary.totalOut)} tone="success" />
+        <ReportKpiCard icon={<PackageCheck className="size-4" />} label={reportBi("voucherCount")} value={fmtNum(summary.voucherCount)} tone="primary" />
+      </ReportKpiGrid>
       <section>
-        <h2 className="text-[14px] font-semibold mb-3">Theo ban bộ</h2>
-        <ReportTable
-          headers={["Mã", "Ban bộ", "Xuất / thu hồi", "Dòng"]}
+        <ReportSectionTitle>{reportBi("byDeptShort")}</ReportSectionTitle>
+        <ReportDataTable
+          headers={[reportBi("colCode"), reportBi("colDept"), reportBi("colOutReturn"), reportBi("colLineCount")]}
           rows={summary.byDept.map((d) => [
             d.maBoPhan,
             d.tenBoPhan,
@@ -528,132 +543,56 @@ function DistributionPreview({
             d.lineCount > 0 ? fmtNum(d.lineCount) : "—",
           ])}
           dimZero={(row) => row[3] === "—"}
+          numericColumns={[2, 3]}
         />
       </section>
       <section>
-        <h2 className="text-[14px] font-semibold mb-3">Theo mã hàng</h2>
-        <ReportTable
-          headers={["Mã hàng", "Tên", "Nhóm", "Số lượng", "ĐVT"]}
+        <ReportSectionTitle>{reportBi("byItem")}</ReportSectionTitle>
+        <ReportDataTable
+          headers={[reportBi("colItemCode"), reportBi("colName"), reportBi("colGroup"), reportBi("colQtyLong"), reportBi("colUnit")]}
           rows={summary.topItems.map((r) => [r.maHang, r.name, r.nhom ?? "—", fmtNum(r.qtyOut), r.unit])}
+          numericColumns={[3]}
         />
       </section>
       <section>
-        <h2 className="text-[14px] font-semibold mb-3">Chi tiết ({fmtNum(lines.length)} dòng)</h2>
+        <ReportSectionTitle>
+          {reportBi("detail")} ({fmtNum(lines.length)} {reportBi("lines")})
+        </ReportSectionTitle>
         {lines.length === 0 ? (
-          <EmptyReport hint="Không có phiếu cấp phát trong kỳ." />
+          <ReportEmptyState hint={reportBi("noDistribution")} />
         ) : (
-          <ReportTable
-            headers={["Phiếu", "Loại", "Ngày", "Ban bộ", "Người nhận", "Mã", "SL"]}
+          <ReportDataTable
+            headers={[
+              reportBi("colVoucher"),
+              reportBi("colType"),
+              reportBi("colDate"),
+              reportBi("colDept"),
+              reportBi("colRecipient"),
+              reportBi("colCode"),
+              reportBi("colQty"),
+            ]}
             rows={lines.slice(0, 50).map((l) => [
               l.soPhieu,
-              VOUCHER_LABEL[l.loaiPhieu as VoucherType] ?? l.loaiPhieu,
+              voucherLabelBi(l.loaiPhieu as VoucherType, VOUCHER_LABEL[l.loaiPhieu as VoucherType]),
               l.ngayLap.split(",")[0] ?? l.ngayLap,
-              l.maBoPhan ? formatBoPhanLabel({ maBoPhan: l.maBoPhan, tenBoPhan: l.tenBoPhan ?? l.maBoPhan }) : (l.tenBoPhan ?? "—"),
+              l.maBoPhan
+                ? formatBoPhanLabel({ maBoPhan: l.maBoPhan, tenBoPhan: l.tenBoPhan ?? l.maBoPhan })
+                : (l.tenBoPhan ?? "—"),
               l.recipient,
               l.maHang,
               fmtNum(l.soLuong),
             ])}
             compact
+            numericColumns={[6]}
           />
         )}
         {lines.length > 50 && (
-          <p className="text-[11px] text-muted-foreground mt-2 italic">
-            Hiển thị 50/{lines.length} dòng — xuất Excel để xem đầy đủ.
+          <p className="text-[11px] text-muted-foreground mt-2 italic print:text-[8pt]">
+            {REPORT_BI.previewLimit.vi.replace("{{total}}", String(lines.length))} /{" "}
+            {REPORT_BI.previewLimit.ko.replace("{{total}}", String(lines.length))}
           </p>
         )}
       </section>
-    </div>
-  );
-}
-
-function KpiCard({
-  icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint?: string;
-  tone: "primary" | "success" | "warning" | "info";
-}) {
-  const tones = {
-    primary: "bg-primary/10 text-primary",
-    success: "bg-success/12 text-success-foreground/90",
-    warning: "bg-warning/12 text-warning-foreground/90",
-    info: "bg-info/12 text-info",
-  };
-  return (
-    <div className="rounded-xl border border-border/60 p-3">
-      <div className="flex justify-between items-start">
-        <span className="text-[11px] text-muted-foreground">{label}</span>
-        <span className={`size-7 rounded-md grid place-items-center ${tones[tone]}`}>{icon}</span>
-      </div>
-      <div className="mt-1.5 text-[18px] font-semibold tabular-nums leading-none">{value}</div>
-      {hint && <div className="text-[10.5px] text-muted-foreground mt-1">{hint}</div>}
-    </div>
-  );
-}
-
-function ReportTable({
-  headers,
-  rows,
-  compact,
-  dimZero,
-}: {
-  headers: string[];
-  rows: (string | number)[][];
-  compact?: boolean;
-  dimZero?: (row: (string | number)[]) => boolean;
-}) {
-  const cellPy = compact ? "py-1.5" : "py-2";
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border/60">
-      <table className="w-full text-[12px]">
-        <thead>
-          <tr className="bg-muted/50 text-muted-foreground text-left">
-            {headers.map((h) => (
-              <th key={h} className={`px-3 ${cellPy} text-[10px] uppercase font-semibold whitespace-nowrap`}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr
-              key={i}
-              className={[
-                "border-t border-border/50",
-                dimZero?.(row) ? "text-muted-foreground/60" : "",
-              ].join(" ")}
-            >
-              {row.map((cell, j) => (
-                <td
-                  key={j}
-                  className={[
-                    `px-3 ${cellPy}`,
-                    j === 0 ? "font-mono text-[11px] text-primary" : "",
-                    j === row.length - 1 && typeof cell === "string" && cell === "⚠" ? "text-amber-600 font-bold" : "",
-                  ].join(" ")}
-                >
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function EmptyReport({ hint }: { hint: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-border py-10 text-center text-[13px] text-muted-foreground">
-      {hint}
     </div>
   );
 }

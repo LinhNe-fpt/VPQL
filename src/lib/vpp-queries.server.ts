@@ -11,6 +11,7 @@ import {
 } from "./audit.server";
 import type {
   AuditLogGroup,
+  BienDongRow,
   BoPhanRow,
   DinhMucRow,
   HangDaCapThuHoiRow,
@@ -606,6 +607,8 @@ export async function fetchVoucherSummaries(): Promise<VoucherSummary[]> {
               ? (tenBoPhan ?? displayName ?? "—")
             : loaiPhieu === "XUAT_CN"
               ? (displayName ?? "—")
+            : loaiPhieu === "KIEM_KE"
+              ? "Kiểm kê kho"
               : (tenBoPhan ?? hoTen ?? "—"),
       department:
         loaiPhieu === "NHAP"
@@ -614,6 +617,8 @@ export async function fetchVoucherSummaries(): Promise<VoucherSummary[]> {
             ? (tenBoPhan ?? "Nội bộ")
           : loaiPhieu === "THU_HOI"
             ? (tenBoPhan ?? "—")
+          : loaiPhieu === "KIEM_KE"
+            ? "Điều chỉnh tồn"
             : (tenBoPhan ?? "—"),
     };
   });
@@ -1340,6 +1345,122 @@ export async function fetchHangDaCapChoThuHoi(
   });
 
   return { nhanVien, items };
+}
+
+export interface BienDongQueryParams {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  maHang?: string | null;
+  nhomHang?: string | null;
+}
+
+export async function fetchBienDongLedger(params: BienDongQueryParams = {}): Promise<BienDongRow[]> {
+  const pool = await getDbPool();
+  const req = pool.request();
+  let where = "WHERE 1=1";
+
+  if (params.dateFrom) {
+    req.input("DateFrom", sql.Date, params.dateFrom);
+    where += " AND CAST(ls.NgayGio AS DATE) >= @DateFrom";
+  }
+  if (params.dateTo) {
+    req.input("DateTo", sql.Date, params.dateTo);
+    where += " AND CAST(ls.NgayGio AS DATE) <= @DateTo";
+  }
+  if (params.maHang?.trim()) {
+    req.input("MaHang", sql.VarChar(50), params.maHang.trim());
+    where += " AND ls.MaHang = @MaHang";
+  }
+  if (params.nhomHang?.trim() && params.nhomHang !== "ALL") {
+    req.input("NhomHang", sql.NVarChar(100), params.nhomHang.trim());
+    where += " AND v.NhomHang = @NhomHang";
+  }
+
+  const result = await req.query(`
+    SELECT
+      ls.ID,
+      ls.NgayGio,
+      ls.MaHang,
+      v.TenSanPham,
+      v.DonViTinh,
+      v.NhomHang,
+      ls.LoaiBienDong,
+      ls.SoLuongThayDoi,
+      ls.TonKhoSauBienDong,
+      ISNULL(ct.DonGia, v.DonGia) AS DonGia,
+      p.SoPhieu,
+      p.LoaiPhieu,
+      p.NguoiLap,
+      ct.GhiChuDong
+    FROM LichSuBienDong ls
+    INNER JOIN PhieuGiaoDich p ON p.ID = ls.PhieuID
+    INNER JOIN DanhMucVatTu v ON v.MaHang = ls.MaHang
+    LEFT JOIN ChiTietGiaoDich ct ON ct.PhieuID = ls.PhieuID AND ct.MaHang = ls.MaHang
+    ${where}
+    ORDER BY ls.NgayGio DESC, ls.ID DESC
+  `);
+
+  return result.recordset.map((row: Record<string, unknown>) => {
+    const maHang = String(row.MaHang);
+    const soLuong = toNumber(row.SoLuongThayDoi);
+    const donGia = toNumber(row.DonGia);
+    return {
+      id: Number(row.ID),
+      ngayGio: formatDateTime(row.NgayGio),
+      maHang,
+      tenSanPham: resolveTenSanPham(maHang, String(row.TenSanPham)),
+      donViTinh: resolveDonViTinh(maHang, String(row.DonViTinh)),
+      nhomHang: resolveNhomHang(maHang, row.NhomHang != null ? String(row.NhomHang) : null),
+      loaiBienDong: String(row.LoaiBienDong) as "TANG" | "GIAM",
+      soLuong,
+      tonKhoSau: toNumber(row.TonKhoSauBienDong),
+      donGia,
+      giaTri: soLuong * donGia,
+      soPhieu: String(row.SoPhieu),
+      loaiPhieu: String(row.LoaiPhieu),
+      nguoiLap: row.NguoiLap != null ? String(row.NguoiLap) : null,
+      ghiChuDong: row.GhiChuDong != null ? String(row.GhiChuDong) : null,
+    };
+  });
+}
+
+export async function generateSoPhieuKiemKe(): Promise<string> {
+  const pool = await getDbPool();
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const prefix = `PK${yy}${mm}`;
+
+  const result = await pool.request().input("Prefix", sql.VarChar(10), `${prefix}%`).query(`
+    SELECT ISNULL(MAX(TRY_CAST(RIGHT(SoPhieu, 4) AS INT)), 0) + 1 AS NextSeq
+    FROM PhieuGiaoDich
+    WHERE SoPhieu LIKE @Prefix
+  `);
+
+  const nextSeq = Number(result.recordset[0]?.NextSeq ?? 1);
+  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
+}
+
+export interface KiemKePostLine {
+  MaHang: string;
+  SoLuongThucTe: number;
+  GhiChu?: string;
+}
+
+export async function execTaoPhieuKiemKe(params: {
+  soPhieu: string;
+  nguoiLap: string;
+  ghiChu?: string | null;
+  danhSachHang: KiemKePostLine[];
+}): Promise<void> {
+  const pool = await getDbPool();
+  await pool
+    .request()
+    .input("SoPhieu", sql.VarChar(50), params.soPhieu)
+    .input("NguoiLap", sql.NVarChar(100), params.nguoiLap)
+    .input("GhiChu", sql.NVarChar(500), params.ghiChu ?? null)
+    .input("DanhSachHangJson", sql.NVarChar(sql.MAX), JSON.stringify(params.danhSachHang))
+    .execute("sp_TaoPhieuKiemKeToanBo");
 }
 
 export async function fetchAuditHistory(params?: {

@@ -16,27 +16,25 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/topbar";
+import { CuocDoQuotaProgress } from "@/components/cuoc-do-quota-progress";
 import { DongPhucCatalogGrid } from "@/components/dong-phuc-catalog-grid";
+import { NhanVienManualFields } from "@/components/nhan-vien-manual-fields";
+import { VoucherPrintButton, VoucherPrintHeader, VoucherPrintSignatures } from "@/components/voucher-print-actions";
+import { VoucherPrintStyles } from "@/components/voucher-print-styles";
 import { VatTuThumbnail } from "@/components/vat-tu-thumbnail";
-import { getBoPhanList } from "@/lib/api/master.functions";
+import { formatBoPhanLabel } from "@/lib/bo-phan";
+import { getIssuerName, useClientSession } from "@/lib/auth";
+import { getBoPhanList, getNhanVienList } from "@/lib/api/master.functions";
 import {
   createPhieuCuocDo,
-  getCuocDoTienDo,
   getCuocDoVatTuList,
   getCuocDoVoucherDetail,
   getCuocDoVoucherList,
 } from "@/lib/api/cuocdo.functions";
-import {
-  CUOC_DO_SIZES,
-  cuocDoLoaiToPhieu,
-  getCuocDoHangMuc,
-  maHangCuocDo,
-  type CuocDoLoai,
-  type CuocDoSize,
-} from "@/lib/cuoc-do";
+import { cuocDoLoaiToPhieu, getCuocDoHangMuc, type CuocDoLoai } from "@/lib/cuoc-do";
 import { DONG_PHUC_CATALOG_KEY } from "@/lib/dong-phuc-catalog";
-import type { TienDoDinhMucRow, VatTuRow } from "@/lib/types/vpp";
-import { VOUCHER_LABEL, type VoucherSummary } from "@/lib/types/vpp";
+import type { VatTuRow } from "@/lib/types/vpp";
+import { VOUCHER_LABEL, type NhanVienRow, type VoucherSummary } from "@/lib/types/vpp";
 
 export const Route = createFileRoute("/_authenticated/cuoc-do")({
   head: () => ({
@@ -55,12 +53,29 @@ const QUERY_KEYS = {
 
 const TYPE_TONE: Record<string, string> = {
   XUAT_CUOC_NV: "bg-primary/12 text-primary border-primary/25",
-  XUAT_CUOC_CN: "bg-[#ff6900]/12 text-[#c44f00] border-[#ff6900]/25",
+  XUAT_CUOC_CN: "bg-primary/12 text-primary border-primary/25",
   XUAT_CUOC_PB: "bg-violet-500/12 text-violet-700 border-violet-500/25",
 };
 
 function fmt(n: number) {
   return new Intl.NumberFormat("vi-VN").format(n);
+}
+
+function isCongNhanChucDanh(chucDanh: string | null | undefined): boolean {
+  if (!chucDanh) return false;
+  const cd = chucDanh.toLowerCase();
+  return (
+    cd.includes("công nhân") ||
+    cd.includes("cong nhan") ||
+    cd.includes("sản xuất") ||
+    cd.includes("san xuat")
+  );
+}
+
+function filterNhanVienForLoai(nhanVien: NhanVienRow[], loai: CuocDoLoai): NhanVienRow[] {
+  if (loai === "PB") return nhanVien;
+  if (loai === "CN") return nhanVien.filter((n) => isCongNhanChucDanh(n.chucDanh));
+  return nhanVien.filter((n) => !isCongNhanChucDanh(n.chucDanh));
 }
 
 function CuocDoPage() {
@@ -106,9 +121,12 @@ function CuocDoPage() {
 
   return (
     <>
-      <Topbar title={t("pages.cuocDo.title")} subtitle={t("pages.cuocDo.subtitle")} />
-      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-0 min-h-0">
-        <div className="flex flex-col border-r border-border/70 min-h-0 bg-background/40">
+      <VoucherPrintStyles />
+      <div className="no-print">
+        <Topbar title={t("pages.cuocDo.title")} subtitle={t("pages.cuocDo.subtitle")} />
+      </div>
+      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-0 min-h-0 voucher-print-root">
+        <div className="no-print flex flex-col border-r border-border/70 min-h-0 bg-background/40">
           <div className="p-4 space-y-3 border-b border-border/70">
             <div className="flex items-center gap-2 h-9 px-3 rounded-lg bg-card border border-border/70">
               <Search className="size-3.5 text-muted-foreground shrink-0" />
@@ -122,7 +140,7 @@ function CuocDoPage() {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="w-full h-9 rounded-lg bg-[#ff6900] text-white text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#e55f00] transition-colors"
+              className="w-full h-9 rounded-lg bg-primary text-primary-foreground text-[12.5px] font-semibold flex items-center justify-center gap-1.5 hover:bg-primary-hover transition-colors"
             >
               <Plus className="size-3.5" />
               {t("pages.cuocDo.newVoucher")}
@@ -140,7 +158,7 @@ function CuocDoPage() {
                   onClick={() => setFilter(item.id)}
                   className={[
                     "px-2.5 h-7 rounded-md text-[12px] font-medium transition-all",
-                    filter === item.id ? "bg-card text-[#ff6900] shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    filter === item.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground",
                   ].join(" ")}
                 >
                   {item.label}
@@ -177,7 +195,7 @@ function CuocDoPage() {
           </div>
         </div>
 
-        <div className="overflow-auto p-6">
+        <div className="overflow-auto p-6 voucher-print-pane">
           {selected ? <VoucherDetailPanel soPhieu={selected.soPhieu} summary={selected} /> : (
             <div className="grid place-items-center h-full text-muted-foreground text-[13px]">
               {t("pages.cuocDo.selectHint")}
@@ -212,7 +230,7 @@ function VoucherListItem({
       className={[
         "w-full text-left p-3.5 rounded-xl border transition-all duration-200 fluid-in",
         active
-          ? "border-[#ff6900]/40 bg-[#ff6900]/6 shadow-sm"
+          ? "border-primary/40 bg-primary/6 shadow-sm"
           : "border-border/70 bg-card hover:border-border hover:bg-muted/30",
       ].join(" ")}
     >
@@ -260,19 +278,34 @@ function VoucherDetailPanel({ soPhieu, summary }: { soPhieu: string; summary: Vo
   if (!detail) return null;
 
   return (
-    <div className="max-w-3xl space-y-5">
-      <div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="text-xl font-semibold tracking-tight font-mono">{detail.soPhieu}</h2>
-          <span className={["px-2.5 py-0.5 rounded-md border text-[11px] font-semibold", TYPE_TONE[detail.loaiPhieu]].join(" ")}>
-            {VOUCHER_LABEL[detail.loaiPhieu]}
-          </span>
+    <div className="max-w-3xl space-y-5 voucher-print-area">
+      <VoucherPrintHeader />
+      <div className="flex items-start justify-between gap-3 flex-wrap print:block">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-semibold tracking-tight font-mono">{detail.soPhieu}</h2>
+            <span className={["px-2.5 py-0.5 rounded-md border text-[11px] font-semibold", TYPE_TONE[detail.loaiPhieu]].join(" ")}>
+              {VOUCHER_LABEL[detail.loaiPhieu]}
+            </span>
+          </div>
+          <p className="text-[13px] text-muted-foreground mt-1">{detail.ngayLap}</p>
         </div>
-        <p className="text-[13px] text-muted-foreground mt-1">{detail.ngayLap}</p>
+        <div className="no-print">
+          <VoucherPrintButton disabled={detail.lines.length === 0} label={t("pages.cuocDo.printVoucher")} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 p-4 rounded-xl border border-border/70 bg-card">
-        <Field icon={<User className="size-3.5" />} label={t("pages.cuocDo.recipient")} value={detail.recipient} sub={detail.maNV ?? undefined} />
+      <div className="grid grid-cols-2 gap-4 p-4 rounded-xl border border-border/70 bg-card print:border-black/20 print:bg-white">
+        <Field
+          icon={<User className="size-3.5" />}
+          label={t("pages.cuocDo.recipient")}
+          value={detail.recipient}
+          sub={
+            summary.tenBoPhan
+              ? formatBoPhanLabel({ maBoPhan: summary.maBoPhan, tenBoPhan: summary.tenBoPhan })
+              : undefined
+          }
+        />
         <Field icon={<Calendar className="size-3.5" />} label={t("pages.cuocDo.issuer")} value={detail.nguoiLap ?? "—"} />
         {summary.loaiPhieu === "XUAT_CUOC_PB" && summary.soNhanVienCap != null && (
           <div className="col-span-2 text-[12px] text-muted-foreground">
@@ -314,6 +347,8 @@ function VoucherDetailPanel({ soPhieu, summary }: { soPhieu: string; summary: Vo
           {summary.ghiChu}
         </p>
       )}
+
+      <VoucherPrintSignatures nguoiLap={detail.nguoiLap} recipient={detail.recipient} />
     </div>
   );
 }
@@ -345,34 +380,25 @@ function NewCuocDoPanel({
   onSuccess: (soPhieu: string) => void;
 }) {
   const { t } = useTranslation();
+  const session = useClientSession();
   const [loai, setLoai] = useState<CuocDoLoai>("NV");
-  const [hoTen, setHoTen] = useState("");
   const [maNV, setMaNV] = useState("");
+  const [hoTen, setHoTen] = useState("");
   const [maBoPhan, setMaBoPhan] = useState("");
   const [soNhanVien, setSoNhanVien] = useState(1);
   const [ghiChu, setGhiChu] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const hangMucList = useMemo(() => getCuocDoHangMuc(loai), [loai]);
-  const [hangMuc, setHangMuc] = useState(() => getCuocDoHangMuc("NV")[0]?.maPrefix ?? "CD-DP");
-  const [size, setSize] = useState<CuocDoSize>("M");
 
   const { data: vatTu = [] } = useQuery({ queryKey: QUERY_KEYS.vatTu, queryFn: () => getCuocDoVatTuList() });
   const { data: boPhan = [] } = useQuery({ queryKey: ["bo-phan"], queryFn: () => getBoPhanList() });
+  const { data: nhanVienAll = [] } = useQuery({ queryKey: ["nhan-vien"], queryFn: () => getNhanVienList() });
 
-  const selectedHang = hangMucList.find((h) => h.maPrefix === hangMuc) ?? hangMucList[0];
+  const nhanVien = useMemo(() => filterNhanVienForLoai(nhanVienAll, loai), [nhanVienAll, loai]);
+  const matchedNv = nhanVienAll.find((n) => n.maNV.toUpperCase() === maNV.trim().toUpperCase());
+  const hasValidMaNV = !!matchedNv;
+
   const isPb = loai === "PB";
-
-  const { data: tienDo = [] } = useQuery({
-    queryKey: ["cuoc-do-tiendo", maNV],
-    queryFn: () => getCuocDoTienDo({ data: { maNV: maNV.trim() } }),
-    enabled: !isPb && !!maNV.trim(),
-  });
-
-  useEffect(() => {
-    if (!hangMucList.some((h) => h.maPrefix === hangMuc)) {
-      setHangMuc(hangMucList[0]?.maPrefix ?? "CD-DP");
-    }
-  }, [hangMucList, hangMuc]);
 
   useEffect(() => {
     if (!isPb || soNhanVien < 1) return;
@@ -405,10 +431,10 @@ function NewCuocDoPanel({
       createPhieuCuocDo({
         data: {
           loaiPhieu: cuocDoLoaiToPhieu(loai),
-          nguoiLap: "Thủ kho",
+          nguoiLap: getIssuerName(session),
           hoTenNguoiNhan: isPb ? undefined : hoTen.trim(),
           maNV: isPb ? undefined : maNV.trim() || undefined,
-          maBoPhan: isPb ? maBoPhan : undefined,
+          maBoPhan,
           soNhanVien: isPb ? soNhanVien : undefined,
           ghiChu: ghiChu || undefined,
           lines: lines.map((l) => ({ maHang: l.maHang, soLuong: l.soLuong })),
@@ -422,17 +448,6 @@ function NewCuocDoPanel({
       toast.error(err instanceof Error ? err.message : t("pages.cuocDo.createError"));
     },
   });
-
-  function addLineFromPicker() {
-    if (!selectedHang) return;
-    const code = maHangCuocDo(selectedHang.maPrefix, selectedHang.coSize ? size : undefined);
-    const item = vatTu.find((v) => v.maHang === code);
-    if (!item) {
-      toast.error(t("pages.cuocDo.itemNotFound", { code }));
-      return;
-    }
-    addItemMaHang(item.maHang);
-  }
 
   function updateQty(key: string, soLuong: number) {
     if (isPb) return;
@@ -450,21 +465,26 @@ function NewCuocDoPanel({
   function switchLoai(type: CuocDoLoai) {
     setLoai(type);
     setLines([]);
-    const nextList = getCuocDoHangMuc(type);
-    setHangMuc(nextList[0]?.maPrefix ?? "CD-DP");
+    setMaNV("");
+    setHoTen("");
+    setMaBoPhan("");
     if (type === "PB") {
-      setHoTen("");
-      setMaNV("");
+      setSoNhanVien(1);
     } else {
-      setMaBoPhan("");
       setSoNhanVien(1);
     }
+  }
+
+  function applyNhanVien(code: string, ten?: string, boPhanCode?: string | null) {
+    setMaNV(code);
+    if (ten) setHoTen(ten);
+    if (boPhanCode) setMaBoPhan(boPhanCode);
   }
 
   const canSubmit =
     lines.length > 0 &&
     !mutation.isPending &&
-    (isPb ? maBoPhan && soNhanVien > 0 : !!hoTen.trim());
+    (isPb ? maBoPhan && soNhanVien > 0 : !!hoTen.trim() && !!maBoPhan);
 
   return (
     <div className="fixed inset-0 z-50">
@@ -489,7 +509,7 @@ function NewCuocDoPanel({
                   className={[
                     "px-2 py-3 rounded-lg border text-[11.5px] font-medium text-left transition-all flex flex-col items-start gap-1.5",
                     loai === type
-                      ? "border-[#ff6900] bg-[#ff6900]/8 text-[#c44f00]"
+                      ? "border-primary bg-primary/8 text-primary"
                       : "border-border bg-card hover:bg-muted",
                   ].join(" ")}
                 >
@@ -505,12 +525,12 @@ function NewCuocDoPanel({
               <select
                 value={maBoPhan}
                 onChange={(e) => setMaBoPhan(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-card text-[13px] outline-none focus:ring-2 focus:ring-[#ff6900]/25"
+                className="w-full h-10 px-3 rounded-lg border border-border bg-card text-[13px] outline-none focus:ring-2 focus:ring-ring/25"
               >
                 <option value="">{t("pages.cuocDo.pickDept")}</option>
                 {boPhan.map((bp) => (
                   <option key={bp.id} value={bp.maBoPhan ?? ""}>
-                    {bp.maBoPhan} — {bp.tenBoPhan}
+                    {formatBoPhanLabel(bp)}
                   </option>
                 ))}
               </select>
@@ -521,7 +541,7 @@ function NewCuocDoPanel({
                   min={1}
                   value={soNhanVien}
                   onChange={(e) => setSoNhanVien(Math.max(1, Number(e.target.value) || 1))}
-                  className="mt-1 w-full h-10 px-3 rounded-lg border border-border bg-card text-[13px] font-semibold outline-none focus:ring-2 focus:ring-[#ff6900]/25"
+                  className="mt-1 w-full h-10 px-3 rounded-lg border border-border bg-card text-[13px] font-semibold outline-none focus:ring-2 focus:ring-ring/25"
                 />
                 <p className="mt-1.5 text-[10.5px] text-muted-foreground">{t("pages.cuocDo.headcountHint")}</p>
               </div>
@@ -537,70 +557,50 @@ function NewCuocDoPanel({
             </Group>
           ) : (
             <Group label={t("pages.cuocDo.recipientManual")}>
-              <input
-                value={hoTen}
-                onChange={(e) => setHoTen(e.target.value)}
-                placeholder={t("pages.cuocDo.recipientNamePh")}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-card text-[13px] outline-none focus:ring-2 focus:ring-[#ff6900]/25"
+              <NhanVienManualFields
+                listIdPrefix="cuoc-do"
+                nhanVien={nhanVien}
+                maNV={maNV}
+                hoTen={hoTen}
+                maNVLabel={`${t("pages.cuocDo.maNVLabel")} (${t("pages.cuocDo.maNVOptional")})`}
+                hoTenLabel={t("pages.cuocDo.recipientNamePh").replace(" *", "")}
+                hoTenPlaceholder={t("pages.cuocDo.recipientNamePh")}
+                onMaNVChange={(code, ten) => {
+                  const hit = nhanVienAll.find((n) => n.maNV.toUpperCase() === code.trim().toUpperCase());
+                  applyNhanVien(code, ten ?? hit?.hoTen, hit?.maBoPhan ?? undefined);
+                }}
+                onHoTenChange={(ten, code) => {
+                  const hit = code
+                    ? nhanVienAll.find((n) => n.maNV.toUpperCase() === code.trim().toUpperCase())
+                    : nhanVienAll.find((n) => n.hoTen.toLowerCase() === ten.trim().toLowerCase());
+                  applyNhanVien(code ?? hit?.maNV ?? maNV, ten, hit?.maBoPhan ?? undefined);
+                }}
               />
-              <input
-                value={maNV}
-                onChange={(e) => setMaNV(e.target.value)}
-                placeholder={t("pages.cuocDo.recipientCodePh")}
-                className="mt-2 w-full h-9 px-3 rounded-lg border border-border bg-card text-[12.5px] outline-none focus:ring-2 focus:ring-[#ff6900]/25 font-mono"
-              />
-              <p className="mt-1.5 text-[10.5px] text-muted-foreground">{t("pages.cuocDo.recipientHint")}</p>
-            </Group>
-          )}
-
-          {!isPb && tienDo.length > 0 && (
-            <Group label={t("pages.cuocDo.quotaYear")}>
-              <div className="rounded-lg border border-border/60 divide-y divide-border/50 text-[11.5px]">
-                {tienDo.map((row) => (
-                  <QuotaRow key={row.maHang} row={row} />
+              <select
+                value={maBoPhan}
+                onChange={(e) => setMaBoPhan(e.target.value)}
+                className="mt-2 w-full h-10 px-3 rounded-lg border border-border bg-card text-[13px] outline-none focus:ring-2 focus:ring-ring/25"
+              >
+                <option value="">{t("pages.cuocDo.pickDept")}</option>
+                {boPhan.map((bp) => (
+                  <option key={bp.id} value={bp.maBoPhan ?? ""}>
+                    {formatBoPhanLabel(bp)}
+                  </option>
                 ))}
-              </div>
+              </select>
+              <p className="mt-1.5 text-[10.5px] text-muted-foreground">{t("pages.cuocDo.recipientHint")}</p>
+              {!hasValidMaNV && hoTen.trim() && (
+                <p className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                  {t("pages.cuocDo.noMaNVWarning")}
+                </p>
+              )}
+              {hasValidMaNV && <CuocDoQuotaProgress maNV={matchedNv.maNV} />}
             </Group>
           )}
 
           <Group label={t("pages.cuocDo.items")}>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-              <select
-                value={hangMuc}
-                onChange={(e) => setHangMuc(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-border bg-card text-[12.5px] outline-none"
-              >
-                {hangMucList.map((h) => (
-                  <option key={h.maPrefix} value={h.maPrefix}>{h.ten}</option>
-                ))}
-              </select>
-              {selectedHang?.coSize ? (
-                <select
-                  value={size}
-                  onChange={(e) => setSize(e.target.value as CuocDoSize)}
-                  className="h-9 px-3 rounded-lg border border-border bg-card text-[12.5px] outline-none font-medium"
-                >
-                  {CUOC_DO_SIZES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              ) : (
-                <div className="h-9 px-3 rounded-lg border border-dashed border-border/70 grid place-items-center text-[11px] text-muted-foreground">
-                  —
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={addLineFromPicker}
-                className="h-9 px-4 rounded-lg bg-[#ff6900]/10 border border-[#ff6900]/30 text-[#c44f00] text-[12px] font-semibold hover:bg-[#ff6900]/15"
-              >
-                + {t("pages.cuocDo.addLine")}
-              </button>
-            </div>
-
-            <div className="mt-3">
-              <DongPhucCatalogGrid vatTu={vatTu} hangMuc={hangMucList} onPick={addItemMaHang} />
-            </div>
+            <DongPhucCatalogGrid vatTu={vatTu} hangMuc={hangMucList} onPick={addItemMaHang} />
 
             {lines.length > 0 && (
               <div className="mt-3 rounded-xl border border-border/70 overflow-hidden">
@@ -663,7 +663,7 @@ function NewCuocDoPanel({
               value={ghiChu}
               onChange={(e) => setGhiChu(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-card text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#ff6900]/25"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-card text-[13px] outline-none resize-none focus:ring-2 focus:ring-ring/25"
             />
           </Group>
         </div>
@@ -676,31 +676,13 @@ function NewCuocDoPanel({
             type="button"
             disabled={!canSubmit}
             onClick={() => mutation.mutate()}
-            className="flex-[2] h-10 rounded-lg bg-[#ff6900] text-white text-[13px] font-semibold hover:bg-[#e55f00] disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-[2] h-10 rounded-lg bg-primary text-primary-foreground text-[13px] font-semibold hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
             {t("pages.cuocDo.submit")}
           </button>
         </div>
       </aside>
-    </div>
-  );
-}
-
-function QuotaRow({ row }: { row: TienDoDinhMucRow }) {
-  const pct = Math.min(100, row.phanTramDaDung);
-  return (
-    <div className="px-3 py-2">
-      <div className="flex justify-between gap-2">
-        <span className="truncate">{row.tenSanPham}</span>
-        <span className="shrink-0 text-muted-foreground">{fmt(row.daDung)}/{fmt(row.soLuongToiDa)}</span>
-      </div>
-      <div className="mt-1 h-1.5 rounded-full bg-muted overflow-hidden">
-        <div
-          className={["h-full rounded-full", pct >= 100 ? "bg-destructive" : pct >= 75 ? "bg-warning" : "bg-[#ff6900]"].join(" ")}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
     </div>
   );
 }

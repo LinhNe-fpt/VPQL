@@ -19,6 +19,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Hồ sơ thủ kho (mật khẩu & thông tin đã chỉnh trên UI)
+data/user-profiles.json
+
 # Ảnh upload từ thiết bị (giữ thư mục uploads)
 public/images/vat-tu/uploads/*
 !public/images/vat-tu/uploads/.gitkeep

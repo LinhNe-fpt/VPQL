@@ -6,7 +6,8 @@ export type VoucherType =
   | "THU_HOI_BHLD"
   | "XUAT_CUOC_NV"
   | "XUAT_CUOC_CN"
-  | "XUAT_CUOC_PB";
+  | "XUAT_CUOC_PB"
+  | "KIEM_KE";
 
 export const VOUCHER_LABEL: Record<VoucherType, string> = {
   NHAP: "Phiếu Nhập – Nhà cung cấp",
@@ -17,6 +18,7 @@ export const VOUCHER_LABEL: Record<VoucherType, string> = {
   XUAT_CUOC_NV: "Cược đồ – Nhân viên",
   XUAT_CUOC_CN: "Cược đồ – Công nhân",
   XUAT_CUOC_PB: "Cược đồ – Bộ phận",
+  KIEM_KE: "Kiểm kê – Điều chỉnh tồn",
 };
 
 export interface VatTuRow {
@@ -62,6 +64,30 @@ export interface VoucherLine {
   soThangSuDung?: number | null;
   trangThaiHang?: string | null;
   ghiChuDong?: string | null;
+}
+
+export interface BienDongRow {
+  id: number;
+  ngayGio: string;
+  maHang: string;
+  tenSanPham: string;
+  donViTinh: string;
+  nhomHang: string | null;
+  loaiBienDong: "TANG" | "GIAM";
+  soLuong: number;
+  tonKhoSau: number;
+  donGia: number;
+  giaTri: number;
+  soPhieu: string;
+  loaiPhieu: string;
+  nguoiLap: string | null;
+  ghiChuDong: string | null;
+}
+
+export interface KiemKeLineInput {
+  maHang: string;
+  soLuongThucTe: number;
+  ghiChu?: string;
 }
 
 export interface VoucherSummary {
@@ -161,4 +187,17 @@ export interface AuditLogGroup {
   ngayGio: string;
   fieldCount: number;
   changes: AuditLogEntry[];
+}
+
+export interface LoginHistoryRow {
+  id: number;
+  maDangNhap: string;
+  hoTen: string | null;
+  phuongThuc: "PASSWORD" | "PIN";
+  phuongThucLabel: string;
+  ketQua: "SUCCESS" | "FAILED";
+  ketQuaLabel: string;
+  diaChiIP: string;
+  userAgent: string | null;
+  ngayGio: string;
 }

@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { LogOut } from "lucide-react";
 
@@ -13,8 +12,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { LogoutTransitionOverlay } from "@/components/auth/logout-transition-overlay";
-import { clearSession, formatShortName, getSession } from "@/lib/auth";
+import { startAuthAuroraLogout } from "@/lib/auth-aurora-bridge";
+import { formatShortName, getSession } from "@/lib/auth";
 
 const LogoutContext = createContext<(() => void) | null>(null);
 
@@ -28,7 +27,6 @@ export function useLogoutRequest() {
 
 export function LogoutProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -42,16 +40,12 @@ export function LogoutProvider({ children }: { children: ReactNode }) {
   const handleConfirm = useCallback(() => {
     setConfirmOpen(false);
     setTransitioning(true);
-  }, []);
-
-  const handleComplete = useCallback(() => {
-    clearSession();
-    navigate({ to: "/login" });
-  }, [navigate]);
+    startAuthAuroraLogout(displayName);
+  }, [displayName]);
 
   return (
     <LogoutContext.Provider value={requestLogout}>
-      {children}
+      {!transitioning ? children : null}
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent className="max-w-[400px] gap-5">
@@ -87,10 +81,6 @@ export function LogoutProvider({ children }: { children: ReactNode }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {transitioning && (
-        <LogoutTransitionOverlay displayName={displayName} onComplete={handleComplete} />
-      )}
     </LogoutContext.Provider>
   );
 }

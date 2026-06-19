@@ -65,10 +65,15 @@ export const createPhieuCuocDo = createServerFn({ method: "POST" })
           if (!val.soNhanVien || val.soNhanVien < 1) {
             ctx.addIssue({ code: "custom", message: "Nhập số nhân viên cần cấp", path: ["soNhanVien"] });
           }
-        } else if (!val.hoTenNguoiNhan?.trim()) {
-          ctx.addIssue({ code: "custom", message: "Nhập họ tên người nhận", path: ["hoTenNguoiNhan"] });
+        } else {
+          if (!val.hoTenNguoiNhan?.trim()) {
+            ctx.addIssue({ code: "custom", message: "Nhập họ tên người nhận", path: ["hoTenNguoiNhan"] });
+          }
+          if (!val.maBoPhan?.trim()) {
+            ctx.addIssue({ code: "custom", message: "Chọn bộ phận", path: ["maBoPhan"] });
+          }
         }
-      }),
+      }), 
   )
   .handler(async ({ data }) => {
     const soPhieu = await generateSoPhieuCuocDo();
@@ -79,7 +84,7 @@ export const createPhieuCuocDo = createServerFn({ method: "POST" })
       nguoiLap: data.nguoiLap,
       hoTenNguoiNhan: data.hoTenNguoiNhan?.trim() || null,
       maNV: data.maNV?.trim() || null,
-      maBoPhan: data.loaiPhieu === "XUAT_CUOC_PB" ? data.maBoPhan?.trim() : null,
+      maBoPhan: data.maBoPhan?.trim() || null,
       soNhanVienCap: data.loaiPhieu === "XUAT_CUOC_PB" ? data.soNhanVien : null,
       ghiChu: data.ghiChu ?? null,
       danhSachHang: data.lines.map((l) => ({

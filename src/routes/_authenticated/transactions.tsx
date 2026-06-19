@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Topbar } from "@/components/topbar";
+import { VoucherPrintButton, VoucherPrintHeader, VoucherPrintSignatures } from "@/components/voucher-print-actions";
+import { VoucherPrintStyles } from "@/components/voucher-print-styles";
 import { getBoPhanList, getNhanVienList } from "@/lib/api/master.functions";
 import { getVatTuList } from "@/lib/api/inventory.functions";
 import {
@@ -17,15 +19,18 @@ import {
 import { getCuocDoVatTuList } from "@/lib/api/cuocdo.functions";
 import { DONG_PHUC_CATALOG_KEY } from "@/lib/dong-phuc-catalog";
 import { DongPhucCatalogGrid } from "@/components/dong-phuc-catalog-grid";
+import { NhanVienManualFields } from "@/components/nhan-vien-manual-fields";
 import { VatTuThumbnail } from "@/components/vat-tu-thumbnail";
 import { BHLD_RETURN_TAG, formatBhldTrangThai, formatDateVi } from "@/lib/bhld";
 import { formatBoPhanLabel } from "@/lib/bo-phan";
+import { getIssuerName, useClientSession, useIssuerName } from "@/lib/auth";
+import { exportVoucherReconciliationExcel } from "@/lib/voucher-reconcile-excel";
+import { getVoucherRecipientLabel } from "@/lib/voucher-print";
 import type { HangDaCapThuHoiRow, NhanVienRow, VatTuRow } from "@/lib/types/vpp";
 import { VOUCHER_LABEL, type VoucherSummary, type VoucherType } from "@/lib/types/vpp";
 import {
   Plus,
   FileDown,
-  Printer,
   Search,
   ArrowDownRight,
   ArrowUpRight,
@@ -55,8 +60,9 @@ const TYPE_TONE: Record<VoucherType, string> = {
   THU_HOI: "bg-warning/15 text-warning-foreground/90 border-warning/25",
   THU_HOI_BHLD: "bg-amber-500/15 text-amber-800 border-amber-500/30",
   XUAT_CUOC_NV: "bg-primary/12 text-primary border-primary/25",
-  XUAT_CUOC_CN: "bg-[#ff6900]/12 text-[#c44f00] border-[#ff6900]/25",
+  XUAT_CUOC_CN: "bg-primary/12 text-primary border-primary/25",
   XUAT_CUOC_PB: "bg-violet-500/12 text-violet-700 border-violet-500/25",
+  KIEM_KE: ""
 };
 
 function VoucherTypeIcon({ type, className = "size-3" }: { type: VoucherType; className?: string }) {
@@ -123,9 +129,12 @@ function TransactionsPage() {
 
   return (
     <>
-      <Topbar title={t("pages.transactions.title")} subtitle={t("pages.transactions.subtitle")} />
-      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-0 min-h-0">
-        <div className="flex flex-col border-r border-border/70 min-h-0 min-w-0 overflow-hidden bg-background/40">
+      <VoucherPrintStyles />
+      <div className="no-print">
+        <Topbar title={t("pages.transactions.title")} subtitle={t("pages.transactions.subtitle")} />
+      </div>
+      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-0 min-h-0 voucher-print-root">
+        <div className="no-print flex flex-col border-r border-border/70 min-h-0 min-w-0 overflow-hidden bg-background/40">
           <div className="p-4 space-y-3 border-b border-border/70 min-w-0">
             <div className="flex items-center gap-2 h-9 px-3 rounded-lg bg-card border border-border/70 min-w-0">
               <Search className="size-3.5 text-muted-foreground shrink-0" />
@@ -211,7 +220,7 @@ function TransactionsPage() {
           </div>
         </div>
 
-        <div className="overflow-auto p-6">
+        <div className="overflow-auto p-6 voucher-print-pane">
           {selected ? <VoucherDetail v={selected} /> : (
             <div className="grid place-items-center h-full text-muted-foreground text-[13px]">Chọn một phiếu để xem chi tiết</div>
           )}
@@ -295,21 +304,42 @@ function VoucherListItem({
 }
 
 function VoucherDetail({ v }: { v: VoucherSummary }) {
+  const session = useClientSession();
   const { data: detail, isLoading } = useQuery({
     queryKey: ["voucher-detail", v.soPhieu],
     queryFn: () => getVoucherDetail({ data: { soPhieu: v.soPhieu } }),
   });
+  const { data: vatTu = [] } = useQuery({
+    queryKey: VOUCHER_KEYS.inventory,
+    queryFn: () => getVatTuList(),
+  });
 
   const lines = detail?.lines ?? [];
+  const stockByMaHang = useMemo(
+    () => Object.fromEntries(vatTu.map((item) => [item.maHang, item.soLuongTon])),
+    [vatTu],
+  );
   const isBhld = v.loaiPhieu === "THU_HOI_BHLD";
   const showBhldDates = isBhld && lines.some((l) => l.ngayCap || l.soThangSuDung);
   const showBhldStatus = isBhld || lines.some((l) => l.trangThaiHang);
   const hidePriceCol = isBhld || showBhldDates;
   const detailExtraCols = (showBhldDates ? 3 : 0) + (showBhldStatus ? 1 : 0);
 
+  function handleQuickReconcile() {
+    if (!detail || lines.length === 0) return;
+    exportVoucherReconciliationExcel({
+      summary: v,
+      lines,
+      stockByMaHang,
+      preparedBy: getIssuerName(session),
+    });
+    toast.success(`Đã xuất file đối chiếu — ${v.soPhieu}`);
+  }
+
   return (
-    <div className="max-w-3xl mx-auto fluid-in">
-      <div className="card-elevated p-7">
+    <div className="max-w-3xl mx-auto fluid-in voucher-print-area">
+      <VoucherPrintHeader />
+      <div className="card-elevated p-7 print:shadow-none print:border-none print:p-0">
         <div className="flex items-start justify-between gap-4 pb-5 border-b border-border/70">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -325,11 +355,14 @@ function VoucherDetail({ v }: { v: VoucherSummary }) {
               Lập lúc {v.ngayLap} bởi {v.nguoiLap ?? "—"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="h-9 px-3 rounded-lg border border-border bg-card text-[12.5px] font-medium hover:bg-muted flex items-center gap-1.5">
-              <Printer className="size-3.5" /> In phiếu
-            </button>
-            <button className="h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-[12.5px] font-semibold flex items-center gap-1.5 hover:bg-primary-hover transition-colors shadow-[var(--shadow-glow)]">
+          <div className="no-print flex items-center gap-2">
+            <VoucherPrintButton disabled={isLoading || lines.length === 0} />
+            <button
+              type="button"
+              disabled={isLoading || lines.length === 0}
+              onClick={handleQuickReconcile}
+              className="h-9 px-3.5 rounded-lg bg-primary text-primary-foreground text-[12.5px] font-semibold flex items-center gap-1.5 hover:bg-primary-hover transition-colors shadow-[var(--shadow-glow)] disabled:opacity-50 disabled:pointer-events-none"
+            >
               <FileDown className="size-3.5" /> Đối chiếu nhanh
             </button>
           </div>
@@ -338,7 +371,7 @@ function VoucherDetail({ v }: { v: VoucherSummary }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-5 border-b border-border/70">
           <Field
             icon={<User className="size-3.5" />}
-            label={v.loaiPhieu === "NHAP" ? "Nhà cung cấp" : v.loaiPhieu === "THU_HOI_BHLD" ? "Người / bộ phận trả" : v.loaiPhieu === "THU_HOI" ? "Nguồn thu hồi" : "Người nhận"}
+            label={getVoucherRecipientLabel(v.loaiPhieu)}
             value={v.recipient}
             sub={v.maNV ?? undefined}
           />
@@ -425,10 +458,12 @@ function VoucherDetail({ v }: { v: VoucherSummary }) {
             </div>
           )}
 
+          <VoucherPrintSignatures nguoiLap={v.nguoiLap} recipient={v.recipient} />
+
           {v.loaiPhieu === "NHAP" || v.loaiPhieu === "THU_HOI" || v.loaiPhieu === "THU_HOI_BHLD" ? (
             <div
               className={[
-                "mt-5 flex items-center gap-3 p-3.5 rounded-lg border",
+                "no-print mt-5 flex items-center gap-3 p-3.5 rounded-lg border",
                 v.loaiPhieu === "NHAP"
                   ? "bg-info/10 border-info/25"
                   : v.loaiPhieu === "THU_HOI_BHLD"
@@ -472,7 +507,7 @@ function VoucherDetail({ v }: { v: VoucherSummary }) {
               </div>
             </div>
           ) : (
-            <div className="mt-5 flex items-center gap-3 p-3.5 rounded-lg bg-success/10 border border-success/25">
+            <div className="no-print mt-5 flex items-center gap-3 p-3.5 rounded-lg bg-success/10 border border-success/25">
               <div className="size-8 rounded-full bg-success/25 grid place-items-center text-success-foreground/90 font-bold">✓</div>
               <div>
                 <div className="text-[12.5px] font-semibold text-success-foreground/90">Đã ghi nhận xuất kho</div>
@@ -509,9 +544,14 @@ function NewPhieuNhapPanel({
   onClose: () => void;
   onSuccess: (soPhieu: string) => void;
 }) {
-  const [nguoiLap, setNguoiLap] = useState("Thủ kho");
+  const issuerDefault = useIssuerName();
+  const [nguoiLap, setNguoiLap] = useState(issuerDefault);
   const [ghiChu, setGhiChu] = useState("");
   const [lines, setLines] = useState<NhapDraftLine[]>([]);
+
+  useEffect(() => {
+    setNguoiLap(issuerDefault);
+  }, [issuerDefault]);
 
   const { data: vatTu = [] } = useQuery({ queryKey: VOUCHER_KEYS.inventory, queryFn: () => getVatTuList() });
 
@@ -735,6 +775,7 @@ function NewPhieuXuatPanel({
   onClose: () => void;
   onSuccess: (soPhieu: string) => void;
 }) {
+  const session = useClientSession();
   const [loaiPhieu, setLoaiPhieu] = useState<"XUAT_CN" | "XUAT_PB">("XUAT_CN");
   const [maNV, setMaNV] = useState("");
   const [hoTenNV, setHoTenNV] = useState("");
@@ -752,7 +793,7 @@ function NewPhieuXuatPanel({
       createPhieuXuat({
         data: {
           loaiPhieu,
-          nguoiLap: "Thủ kho",
+          nguoiLap: getIssuerName(session),
           maNV: loaiPhieu === "XUAT_CN" ? maNV.trim() : undefined,
           maBoPhan: loaiPhieu === "XUAT_PB" ? maBoPhan : undefined,
           ghiChu: ghiChu || undefined,
@@ -960,12 +1001,17 @@ function NewPhieuThuHoiBhldPanel({
   onClose: () => void;
   onSuccess: (soPhieu: string) => void;
 }) {
-  const [nguoiLap, setNguoiLap] = useState("Thủ kho");
+  const issuerDefault = useIssuerName();
+  const [nguoiLap, setNguoiLap] = useState(issuerDefault);
   const [maNV, setMaNV] = useState("");
   const [hoTenNV, setHoTenNV] = useState("");
   const [maBoPhan, setMaBoPhan] = useState("");
   const [ghiChu, setGhiChu] = useState("");
   const [selection, setSelection] = useState<ThuTraSelection>({});
+
+  useEffect(() => {
+    setNguoiLap(issuerDefault);
+  }, [issuerDefault]);
 
   const { data: vatTu = [] } = useQuery({ queryKey: VOUCHER_KEYS.dongPhuc, queryFn: () => getCuocDoVatTuList() });
   const { data: nhanVien = [] } = useQuery({ queryKey: VOUCHER_KEYS.nhanVien, queryFn: () => getNhanVienList() });
@@ -1292,97 +1338,6 @@ function NewPhieuThuHoiBhldPanel({
           </button>
         </div>
       </aside>
-    </div>
-  );
-}
-
-const fieldInputCls =
-  "w-full h-10 px-3 rounded-lg border border-border bg-card text-[13px] outline-none focus:ring-2 focus:ring-primary/25";
-
-function NhanVienManualFields({
-  listIdPrefix,
-  nhanVien,
-  maNV,
-  hoTen,
-  onMaNVChange,
-  onHoTenChange,
-}: {
-  listIdPrefix: string;
-  nhanVien: NhanVienRow[];
-  maNV: string;
-  hoTen: string;
-  onMaNVChange: (maNV: string, hoTen?: string) => void;
-  onHoTenChange: (hoTen: string, maNV?: string) => void;
-}) {
-  const matched = nhanVien.find((n) => n.maNV.toUpperCase() === maNV.trim().toUpperCase());
-
-  return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <span className="text-[10.5px] text-muted-foreground font-medium mb-1 block">Mã nhân viên</span>
-          <input
-            value={maNV}
-            onChange={(e) => {
-              const code = e.target.value;
-              const hit = nhanVien.find((n) => n.maNV.toUpperCase() === code.trim().toUpperCase());
-              onMaNVChange(code, hit?.hoTen);
-            }}
-            onBlur={() => {
-              const hit = nhanVien.find((n) => n.maNV.toUpperCase() === maNV.trim().toUpperCase());
-              if (hit) onMaNVChange(hit.maNV, hit.hoTen);
-            }}
-            list={`${listIdPrefix}-ma`}
-            placeholder="VD: NV001"
-            className={fieldInputCls}
-            autoComplete="off"
-          />
-          <datalist id={`${listIdPrefix}-ma`}>
-            {nhanVien.map((nv) => (
-              <option key={nv.maNV} value={nv.maNV}>
-                {nv.hoTen}
-              </option>
-            ))}
-          </datalist>
-        </div>
-        <div>
-          <span className="text-[10.5px] text-muted-foreground font-medium mb-1 block">Họ và tên</span>
-          <input
-            value={hoTen}
-            onChange={(e) => {
-              const ten = e.target.value;
-              const hit = nhanVien.find((n) => n.hoTen.toLowerCase() === ten.trim().toLowerCase());
-              onHoTenChange(ten, hit?.maNV);
-            }}
-            onBlur={() => {
-              const hit = nhanVien.find((n) => n.hoTen.toLowerCase() === hoTen.trim().toLowerCase());
-              if (hit) onHoTenChange(hit.hoTen, hit.maNV);
-            }}
-            list={`${listIdPrefix}-ten`}
-            placeholder="Nhập họ tên"
-            className={fieldInputCls}
-            autoComplete="off"
-          />
-          <datalist id={`${listIdPrefix}-ten`}>
-            {nhanVien.map((nv) => (
-              <option key={nv.maNV} value={nv.hoTen}>
-                {nv.maNV}
-              </option>
-            ))}
-          </datalist>
-        </div>
-      </div>
-      {matched && (
-        <p className="text-[11px] text-muted-foreground">
-          {matched.chucDanh ?? "—"} · {matched.tenBoPhan ?? "—"}
-          {matched.sizeAo ? ` · Size áo: ${matched.sizeAo}` : ""}
-        </p>
-      )}
-      {maNV.trim() && !matched && (
-        <p className="text-[11px] text-warning-foreground/90">
-          Mã chưa khớp danh sách nhân sự — vui lòng kiểm tra lại trước khi lưu.
-        </p>
-      )}
     </div>
   );
 }

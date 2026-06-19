@@ -20,7 +20,7 @@ export type DongPhucHangMuc = {
 
 export const DONG_PHUC_HANG_MUC: readonly DongPhucHangMuc[] = [
   { maPrefix: "CD-DP", ten: "Áo đồng phục", coSize: true, loai: ["CN", "PB"] },
-  { maPrefix: "CD-GILE", ten: "Áo gile", coSize: true, loai: ["NV"] },
+  { maPrefix: "CD-GILE", ten: "Áo gile", coSize: true, loai: ["NV", "PB"] },
   { maPrefix: "CD-DTD", ten: "Dép tĩnh điện", coSize: false },
   { maPrefix: "CD-CKTU", ten: "Chìa khóa tủ", coSize: false },
   { maPrefix: "CD-THE", ten: "Thẻ nhân viên", coSize: false },
@@ -29,7 +29,7 @@ export const DONG_PHUC_HANG_MUC: readonly DongPhucHangMuc[] = [
 
 export const DONG_PHUC_PREFIX_ORDER = DONG_PHUC_HANG_MUC.map((h) => h.maPrefix);
 
-/** Danh mục theo loại phiếu — NV: áo gile; CN/PB: áo đồng phục. */
+/** Danh mục theo loại phiếu — NV/PB: áo gile (+ PB còn áo đồng phục); CN: áo đồng phục. */
 export function getDongPhucHangMuc(loai: CuocDoPhatLoai | "ALL" = "ALL"): DongPhucHangMuc[] {
   if (loai === "ALL") return [...DONG_PHUC_HANG_MUC];
   return DONG_PHUC_HANG_MUC.filter((h) => !h.loai || h.loai.includes(loai));

@@ -27,16 +27,16 @@ export function XiaomiSupergraphic({
       >
         <defs>
           <linearGradient id="mi-sweep-a" x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#FF6900" stopOpacity="0.92" />
-            <stop offset="100%" stopColor="#FF8534" stopOpacity="0.75" />
+            <stop offset="0%" stopColor="#0038FF" stopOpacity="0.92" />
+            <stop offset="100%" stopColor="#4D7CFF" stopOpacity="0.75" />
           </linearGradient>
           <linearGradient id="mi-sweep-b" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FF6900" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#FFB380" stopOpacity="0.08" />
+            <stop offset="0%" stopColor="#0038FF" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#8FA8FF" stopOpacity="0.08" />
           </linearGradient>
           <linearGradient id="mi-ring" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FF6900" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#FF6900" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="#0038FF" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#0038FF" stopOpacity="0.05" />
           </linearGradient>
         </defs>
 
@@ -57,7 +57,7 @@ export function XiaomiSupergraphic({
           rx="360"
           ry="360"
           fill="none"
-          stroke="#FF6900"
+          stroke="#0038FF"
           strokeOpacity="0.06"
           strokeWidth="1.5"
         />
@@ -77,7 +77,7 @@ export function XiaomiSupergraphic({
           className="xiaomi-supergraphic__arc"
           d="M 60 680 Q 420 120, 880 320"
           fill="none"
-          stroke="#FF6900"
+          stroke="#0038FF"
           strokeOpacity="0.18"
           strokeWidth="3"
         />
@@ -85,7 +85,7 @@ export function XiaomiSupergraphic({
           className="xiaomi-supergraphic__arc xiaomi-supergraphic__arc--2"
           d="M 120 760 Q 480 200, 940 400"
           fill="none"
-          stroke="#FF6900"
+          stroke="#0038FF"
           strokeOpacity="0.1"
           strokeWidth="2"
         />

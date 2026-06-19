@@ -3,11 +3,21 @@ import { useEffect, useState } from "react";
 import i18n from "@/lib/i18n";
 
 export const SESSION_KEY = "stockflow_session";
+export const UNLOCK_HINT_KEY = "stockflow_unlock_hint";
+export const SESSION_UPDATED_EVENT = "stockflow-session-updated";
+
+export type UnlockHint = {
+  username: string;
+  displayName: string;
+};
 
 export interface UserSession {
   username: string;
   displayName: string;
   role: string;
+  email?: string;
+  phone?: string;
+  department?: string;
 }
 
 export function getSession(): UserSession | null {
@@ -23,6 +33,48 @@ export function getSession(): UserSession | null {
 
 export function setSession(session: UserSession) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  setUnlockHint({ username: session.username, displayName: session.displayName });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(SESSION_UPDATED_EVENT));
+  }
+}
+
+export function getUnlockHint(): UnlockHint | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(UNLOCK_HINT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as UnlockHint;
+    if (!parsed?.username) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function setUnlockHint(hint: UnlockHint) {
+  localStorage.setItem(UNLOCK_HINT_KEY, JSON.stringify(hint));
+}
+
+export function clearUnlockHint() {
+  localStorage.removeItem(UNLOCK_HINT_KEY);
+}
+
+export function updateSessionProfile(patch: Partial<UserSession>) {
+  const current = getSession();
+  if (!current) return;
+  setSession({ ...current, ...patch });
+}
+
+/** Tên người lập phiếu / báo cáo — ưu tiên họ tên đã cấu hình. */
+export function getIssuerName(session: UserSession | null | undefined): string {
+  if (!session) return "Thủ kho";
+  return session.displayName?.trim() || session.username || "Thủ kho";
+}
+
+export function useIssuerName(): string {
+  const session = useClientSession();
+  return getIssuerName(session);
 }
 
 export function clearSession() {
@@ -38,7 +90,10 @@ export function useClientSession(): UserSession | null {
   const [session, setSession] = useState<UserSession | null>(null);
 
   useEffect(() => {
-    setSession(getSession());
+    const sync = () => setSession(getSession());
+    sync();
+    window.addEventListener(SESSION_UPDATED_EVENT, sync);
+    return () => window.removeEventListener(SESSION_UPDATED_EVENT, sync);
   }, []);
 
   return session;

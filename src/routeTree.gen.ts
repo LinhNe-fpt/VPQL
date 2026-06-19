@@ -18,6 +18,8 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedQuotasRouteImport } from './routes/_authenticated/quotas'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
+import { Route as AuthenticatedLoginHistoryRouteImport } from './routes/_authenticated/login-history'
+import { Route as AuthenticatedKiemKeRouteImport } from './routes/_authenticated/kiem-ke'
 import { Route as AuthenticatedInventoryRouteImport } from './routes/_authenticated/inventory'
 import { Route as AuthenticatedCuocDoRouteImport } from './routes/_authenticated/cuoc-do'
 import { Route as AuthenticatedAuditLogRouteImport } from './routes/_authenticated/audit-log'
@@ -67,6 +69,17 @@ const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedLoginHistoryRoute =
+  AuthenticatedLoginHistoryRouteImport.update({
+    id: '/login-history',
+    path: '/login-history',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedKiemKeRoute = AuthenticatedKiemKeRouteImport.update({
+  id: '/kiem-ke',
+  path: '/kiem-ke',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedInventoryRoute = AuthenticatedInventoryRouteImport.update({
   id: '/inventory',
   path: '/inventory',
@@ -89,6 +102,8 @@ export interface FileRoutesByFullPath {
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/cuoc-do': typeof AuthenticatedCuocDoRoute
   '/inventory': typeof AuthenticatedInventoryRoute
+  '/kiem-ke': typeof AuthenticatedKiemKeRoute
+  '/login-history': typeof AuthenticatedLoginHistoryRoute
   '/products': typeof AuthenticatedProductsRoute
   '/quotas': typeof AuthenticatedQuotasRoute
   '/reports': typeof AuthenticatedReportsRoute
@@ -101,6 +116,8 @@ export interface FileRoutesByTo {
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/cuoc-do': typeof AuthenticatedCuocDoRoute
   '/inventory': typeof AuthenticatedInventoryRoute
+  '/kiem-ke': typeof AuthenticatedKiemKeRoute
+  '/login-history': typeof AuthenticatedLoginHistoryRoute
   '/products': typeof AuthenticatedProductsRoute
   '/quotas': typeof AuthenticatedQuotasRoute
   '/reports': typeof AuthenticatedReportsRoute
@@ -116,6 +133,8 @@ export interface FileRoutesById {
   '/_authenticated/audit-log': typeof AuthenticatedAuditLogRoute
   '/_authenticated/cuoc-do': typeof AuthenticatedCuocDoRoute
   '/_authenticated/inventory': typeof AuthenticatedInventoryRoute
+  '/_authenticated/kiem-ke': typeof AuthenticatedKiemKeRoute
+  '/_authenticated/login-history': typeof AuthenticatedLoginHistoryRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/quotas': typeof AuthenticatedQuotasRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
@@ -132,6 +151,8 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/cuoc-do'
     | '/inventory'
+    | '/kiem-ke'
+    | '/login-history'
     | '/products'
     | '/quotas'
     | '/reports'
@@ -144,6 +165,8 @@ export interface FileRouteTypes {
     | '/audit-log'
     | '/cuoc-do'
     | '/inventory'
+    | '/kiem-ke'
+    | '/login-history'
     | '/products'
     | '/quotas'
     | '/reports'
@@ -158,6 +181,8 @@ export interface FileRouteTypes {
     | '/_authenticated/audit-log'
     | '/_authenticated/cuoc-do'
     | '/_authenticated/inventory'
+    | '/_authenticated/kiem-ke'
+    | '/_authenticated/login-history'
     | '/_authenticated/products'
     | '/_authenticated/quotas'
     | '/_authenticated/reports'
@@ -237,6 +262,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProductsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/login-history': {
+      id: '/_authenticated/login-history'
+      path: '/login-history'
+      fullPath: '/login-history'
+      preLoaderRoute: typeof AuthenticatedLoginHistoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/kiem-ke': {
+      id: '/_authenticated/kiem-ke'
+      path: '/kiem-ke'
+      fullPath: '/kiem-ke'
+      preLoaderRoute: typeof AuthenticatedKiemKeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/inventory': {
       id: '/_authenticated/inventory'
       path: '/inventory'
@@ -265,6 +304,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAuditLogRoute: typeof AuthenticatedAuditLogRoute
   AuthenticatedCuocDoRoute: typeof AuthenticatedCuocDoRoute
   AuthenticatedInventoryRoute: typeof AuthenticatedInventoryRoute
+  AuthenticatedKiemKeRoute: typeof AuthenticatedKiemKeRoute
+  AuthenticatedLoginHistoryRoute: typeof AuthenticatedLoginHistoryRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedQuotasRoute: typeof AuthenticatedQuotasRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
@@ -278,6 +319,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditLogRoute: AuthenticatedAuditLogRoute,
   AuthenticatedCuocDoRoute: AuthenticatedCuocDoRoute,
   AuthenticatedInventoryRoute: AuthenticatedInventoryRoute,
+  AuthenticatedKiemKeRoute: AuthenticatedKiemKeRoute,
+  AuthenticatedLoginHistoryRoute: AuthenticatedLoginHistoryRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedQuotasRoute: AuthenticatedQuotasRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,

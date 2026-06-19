@@ -12,8 +12,10 @@ import { useTranslation } from "react-i18next";
 
 import appCss from "../styles.css?url";
 import { restoreClientLocale } from "../lib/i18n";
+import { restoreLoginTheme } from "../lib/login-theme";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
+import { AuthAuroraHost } from "../components/auth/auth-aurora-host";
 
 function NotFoundComponent() {
   const { t } = useTranslation();
@@ -103,6 +105,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     restoreClientLocale();
+    restoreLoginTheme();
   }, []);
 
   return (
@@ -124,6 +127,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AuthAuroraHost />
       <Outlet />
     </QueryClientProvider>
   );

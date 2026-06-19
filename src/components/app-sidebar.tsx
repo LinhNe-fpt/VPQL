@@ -8,6 +8,7 @@ import {
   Users,
   Settings,
   BarChart3,
+  ClipboardCheck,
   Zap,
   History,
   ShieldCheck,
@@ -15,9 +16,10 @@ import {
   Menu,
   Shirt,
   Package,
+  LogIn,
 } from "lucide-react";
 
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useLogoutRequest } from "@/components/auth/logout-flow";
 import {
   formatShortName,
@@ -28,19 +30,54 @@ import {
   type UserSession,
 } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 
-export const navItems = [
-  { titleKey: "nav.dashboard", url: "/", icon: LayoutDashboard },
-  { titleKey: "nav.inventory", url: "/inventory", icon: Boxes },
-  { titleKey: "nav.products", url: "/products", icon: Package },
-  { titleKey: "nav.transactions", url: "/transactions", icon: FileStack },
-  { titleKey: "nav.cuocDo", url: "/cuoc-do", icon: Shirt },
-  { titleKey: "nav.staff", url: "/staff", icon: Users },
-  { titleKey: "nav.quotas", url: "/quotas", icon: ShieldCheck },
-  { titleKey: "nav.reports", url: "/reports", icon: BarChart3 },
-  { titleKey: "nav.auditLog", url: "/audit-log", icon: History },
-  { titleKey: "nav.settings", url: "/settings", icon: Settings },
-] as const;
+export type NavItem = {
+  titleKey: string;
+  url: string;
+  icon: LucideIcon;
+};
+
+export type NavGroup = {
+  labelKey: string;
+  items: NavItem[];
+};
+
+export const navGroups: NavGroup[] = [
+  {
+    labelKey: "nav.groupOverview",
+    items: [{ titleKey: "nav.dashboard", url: "/", icon: LayoutDashboard }],
+  },
+  {
+    labelKey: "nav.groupWarehouse",
+    items: [
+      { titleKey: "nav.inventory", url: "/inventory", icon: Boxes },
+      { titleKey: "nav.products", url: "/products", icon: Package },
+      { titleKey: "nav.transactions", url: "/transactions", icon: FileStack },
+      { titleKey: "nav.kiemKe", url: "/kiem-ke", icon: ClipboardCheck },
+    ],
+  },
+  {
+    labelKey: "nav.groupDistribution",
+    items: [
+      { titleKey: "nav.cuocDo", url: "/cuoc-do", icon: Shirt },
+      { titleKey: "nav.staff", url: "/staff", icon: Users },
+      { titleKey: "nav.quotas", url: "/quotas", icon: ShieldCheck },
+    ],
+  },
+  {
+    labelKey: "nav.groupAdmin",
+    items: [
+      { titleKey: "nav.reports", url: "/reports", icon: BarChart3 },
+      { titleKey: "nav.loginHistory", url: "/login-history", icon: LogIn },
+      { titleKey: "nav.auditLog", url: "/audit-log", icon: History },
+      { titleKey: "nav.settings", url: "/settings", icon: Settings },
+    ],
+  },
+];
+
+/** Danh sách phẳng — dùng khi cần duyệt toàn bộ route nav. */
+export const navItems = navGroups.flatMap((g) => g.items);
 
 function useAuthSession(): UserSession | null {
   return useClientSession();
@@ -70,37 +107,43 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     path === "/" ? currentPath === "/" : currentPath.startsWith(path);
 
   return (
-    <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-      <div className="px-2 pb-2 pt-1 text-[10.5px] uppercase tracking-[0.14em] text-sidebar-foreground/45">
-        {t("common.phanHe")}
-      </div>
-      {navItems.map((item) => {
-        const active = isActive(item.url);
-        return (
-          <Link
-            key={item.url}
-            to={item.url}
-            onClick={onNavigate}
-            className={[
-              "group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] transition-all duration-200",
-              active
-                ? "bg-sidebar-primary/15 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
-                : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-white",
-            ].join(" ")}
-          >
-            <item.icon
-              className={[
-                "size-4",
-                active ? "text-primary" : "text-sidebar-foreground/55 group-hover:text-white",
-              ].join(" ")}
-            />
-            <span className="font-medium">{t(item.titleKey)}</span>
-            {active && (
-              <span className="ml-auto size-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(0,56,255,0.8)]" />
-            )}
-          </Link>
-        );
-      })}
+    <nav className="flex-1 px-3 space-y-4 overflow-y-auto pb-2">
+      {navGroups.map((group) => (
+        <div key={group.labelKey}>
+          <div className="px-2 pb-1.5 text-[10.5px] uppercase tracking-[0.14em] text-sidebar-foreground/45">
+            {t(group.labelKey)}
+          </div>
+          <div className="space-y-0.5">
+            {group.items.map((item) => {
+              const active = isActive(item.url);
+              return (
+                <Link
+                  key={item.url}
+                  to={item.url}
+                  onClick={onNavigate}
+                  className={[
+                    "group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] transition-all duration-200",
+                    active
+                      ? "bg-sidebar-primary/15 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+                      : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-white",
+                  ].join(" ")}
+                >
+                  <item.icon
+                    className={[
+                      "size-4",
+                      active ? "text-primary" : "text-sidebar-foreground/55 group-hover:text-white",
+                    ].join(" ")}
+                  />
+                  <span className="font-medium">{t(item.titleKey)}</span>
+                  {active && (
+                    <span className="ml-auto size-1.5 rounded-full bg-primary shadow-[0_0_10px_rgba(0,56,255,0.8)]" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 }
@@ -116,6 +159,7 @@ function SidebarUserCard({
   const requestLogout = useLogoutRequest();
   const displayName = session?.displayName ?? t("common.user");
   const roleLabel = session ? getRoleLabel(session.role) : "—";
+  const subtitle = session?.department?.trim() || (session ? getRoleSubtitle(session.role) : "");
 
   function handleLogout() {
     onBeforeLogout?.();
@@ -130,7 +174,7 @@ function SidebarUserCard({
         </div>
         <div className="flex-1 min-w-0 leading-tight">
           <div className="text-[12.5px] font-medium text-white truncate">{displayName}</div>
-          <div className="text-[10.5px] text-sidebar-foreground/55 truncate">{roleLabel}</div>
+          <div className="text-[10.5px] text-sidebar-foreground/55 truncate">{subtitle || roleLabel}</div>
         </div>
         <button
           type="button"
@@ -151,7 +195,7 @@ export function AppSidebar({ className }: { className?: string }) {
   return (
     <aside
       className={cn(
-        "hidden md:flex h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
+        "hidden md:flex h-full w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border no-print",
         className,
       )}
     >
@@ -163,6 +207,7 @@ export function AppSidebar({ className }: { className?: string }) {
 }
 
 export function MobileNav() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const session = useAuthSession();
 
@@ -182,6 +227,10 @@ export function MobileNav() {
           side="left"
           className="w-72 max-w-[85vw] border-sidebar-border bg-sidebar p-0 text-sidebar-foreground [&>button]:text-sidebar-foreground/70 [&>button]:hover:text-white"
         >
+          <SheetHeader className="sr-only">
+            <SheetTitle>{t("nav.dashboard")}</SheetTitle>
+            <SheetDescription>{t("nav.groupOverview")}</SheetDescription>
+          </SheetHeader>
           <div className="flex h-full flex-col">
             <SidebarBrand />
             <SidebarNav onNavigate={() => setOpen(false)} />
@@ -198,7 +247,7 @@ export function UserProfileBadge({ compact }: { compact?: boolean }) {
   const { t } = useTranslation();
   const session = useAuthSession();
   const displayName = session?.displayName ?? t("common.user");
-  const subtitle = session ? getRoleSubtitle(session.role) : "";
+  const subtitle = session?.department?.trim() || (session ? getRoleSubtitle(session.role) : "");
 
   return (
     <div className="flex items-center gap-2.5">

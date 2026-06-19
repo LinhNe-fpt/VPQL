@@ -43,6 +43,7 @@ export const REPORT_LOAI_OPTIONS = [
   "XUAT_CUOC_CN",
   "XUAT_CUOC_PB",
   "THU_HOI_BHLD",
+  "KIEM_KE",
 ] as const;
 
 export type ReportLoaiFilter = (typeof REPORT_LOAI_OPTIONS)[number];

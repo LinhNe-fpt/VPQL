@@ -1,17 +1,22 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+import { LoginAuroraBackdrop } from "@/components/auth/login-aurora-backdrop";
+import { LoginThemePicker } from "@/components/auth/login-theme-picker";
 import { LoginTransitionOverlay } from "@/components/auth/login-transition-overlay";
-import { XiaomiSupergraphic } from "@/components/auth/xiaomi-supergraphic";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { login } from "@/lib/api/auth.functions";
-import { hasSession, setSession } from "@/lib/auth";
+import { getUnlockInfoFn, login, loginWithPin } from "@/lib/api/auth.functions";
+import { useLoginTheme } from "@/lib/use-login-theme";
+import {
+  clearUnlockHint,
+  getUnlockHint,
+  hasSession,
+  setSession,
+  type UnlockHint,
+} from "@/lib/auth";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
@@ -28,19 +33,111 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
+type LoginMode = "pin" | "full";
+
+function LoginField({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label htmlFor={id} className="login-field block">
+      <span className="login-field__label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { themeId, setThemeId, palette } = useLoginTheme();
+  const [mode, setMode] = useState<LoginMode>("full");
+  const [unlockHint, setUnlockHint] = useState<UnlockHint | null>(null);
+  const [checkingUnlock, setCheckingUnlock] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
-  const [transitionUser, setTransitionUser] = useState<string | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
+  const [transitionUser, setTransitionUser] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveUnlock() {
+      const hint = getUnlockHint();
+      if (!hint) {
+        if (!cancelled) {
+          setCheckingUnlock(false);
+          setMode("full");
+        }
+        return;
+      }
+
+      try {
+        const info = await getUnlockInfoFn({ data: { username: hint.username } });
+        if (cancelled) return;
+
+        if (!info.found) {
+          clearUnlockHint();
+          setCheckingUnlock(false);
+          return;
+        }
+
+        setUnlockHint({ username: info.username, displayName: info.displayName });
+        setUsername(info.username);
+
+        if (info.hasPin) {
+          setMode("pin");
+        } else {
+          setMode("full");
+        }
+      } catch {
+        if (!cancelled) {
+          setUnlockHint(hint);
+          setUsername(hint.username);
+          setMode("full");
+        }
+      } finally {
+        if (!cancelled) setCheckingUnlock(false);
+      }
+    }
+
+    const run = () => {
+      void resolveUnlock();
+    };
+
+    if (typeof requestIdleCallback !== "undefined") {
+      const idleId = requestIdleCallback(run, { timeout: 280 });
+      return () => {
+        cancelled = true;
+        cancelIdleCallback(idleId);
+      };
+    }
+
+    const timerId = window.setTimeout(run, 64);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
+  }, []);
 
   const finishTransition = useCallback(() => {
     navigate({ to: "/" });
   }, [navigate]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function completeLogin(session: Awaited<ReturnType<typeof login>>) {
+    setSession(session);
+    setTransitionUser(session.displayName);
+    setTransitioning(true);
+  }
+
+  async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim() || !password) {
       toast.error(t("login.fillRequired"));
@@ -50,114 +147,192 @@ function LoginPage() {
     setLoading(true);
     try {
       const session = await login({ data: { username: username.trim(), password } });
-      setSession(session);
-      setTransitionUser(session.displayName);
+      await completeLogin(session);
     } catch {
       toast.error(t("auth.invalidCredentials"));
       setLoading(false);
     }
   }
 
+  async function handlePinSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!unlockHint || !/^\d{4,6}$/.test(pin)) {
+      toast.error(t("login.pinInvalid"));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const session = await loginWithPin({ data: { username: unlockHint.username, pin } });
+      await completeLogin(session);
+    } catch {
+      toast.error(t("login.pinWrong"));
+      setLoading(false);
+    }
+  }
+
+  function switchToPasswordLogin() {
+    setMode("full");
+    setPin("");
+    if (unlockHint) setUsername(unlockHint.username);
+  }
+
+  function switchToOtherAccount() {
+    clearUnlockHint();
+    setUnlockHint(null);
+    setMode("full");
+    setUsername("");
+    setPassword("");
+    setPin("");
+  }
+
+  const showPinForm = mode === "pin" && unlockHint && !checkingUnlock;
+
+  const formHeading = showPinForm ? t("login.pinTitle") : t("login.title");
+  const formSubtitle = showPinForm
+    ? t("login.pinSubtitle", { name: unlockHint!.displayName })
+    : t("login.welcomeBackDesc");
+
   return (
     <>
-      {transitionUser && (
+      {transitioning && (
         <LoginTransitionOverlay displayName={transitionUser} onComplete={finishTransition} />
       )}
 
-      <div className="xiaomi-login-root min-h-screen relative overflow-hidden">
-        {!transitionUser && <XiaomiSupergraphic variant="scene" />}
+      <div className="login-shell login-shell--wallpaper">
+        <LoginAuroraBackdrop palette={palette} />
 
-        <div className="relative z-20 flex min-h-screen flex-col">
-          <header className="flex items-center justify-between gap-4 px-6 py-5 lg:px-10">
-            <div className="flex items-center gap-3">
-              <div className="xiaomi-login-logo size-10 rounded-xl grid place-items-center">
+        <header className="login-topbar">
+          <div className="login-topbar__actions">
+            <LoginThemePicker themeId={themeId} onThemeChange={setThemeId} compact />
+            <LanguageSwitcher compact className="login-lang border-white/40 bg-white/55 shadow-sm backdrop-blur-md" />
+          </div>
+        </header>
+
+        <main className="login-center">
+          <div className="login-glass-card">
+            <div className="login-glass-card__brand">
+              <div className="login-glass-card__logo">
                 <Zap className="size-5 text-white" strokeWidth={2.4} />
               </div>
               <div>
-                <p className="text-[17px] font-semibold tracking-tight text-gray-900">Stockflow</p>
-                <p className="text-[12px] text-gray-500">{t("common.edition")}</p>
+                <p className="login-glass-card__name">Stockflow</p>
+                <p className="login-glass-card__edition">{t("common.edition")}</p>
               </div>
             </div>
-            <LanguageSwitcher
-              compact
-              className="border-gray-200 bg-white/80 text-gray-700 shadow-sm [&_span]:text-gray-700"
-            />
-          </header>
 
-          <div className="flex flex-1 flex-col items-center justify-center px-6 pb-8 lg:flex-row lg:items-center lg:justify-end lg:gap-12 lg:pr-[6%] lg:pl-[42%]">
-            <div className="mb-8 text-center lg:mb-0 lg:hidden">
-              <p className="text-[13px] font-medium text-[#ff6900]">{t("login.heroEyebrow")}</p>
-              <h1 className="mt-2 text-xl font-semibold text-gray-900">{t("login.heroTitle")}</h1>
-            </div>
-
-            <div className="xiaomi-login-card w-full max-w-[400px]">
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold tracking-tight text-gray-900">
-                  {t("login.title")}
-                </h2>
-                <p className="mt-1.5 text-sm text-gray-500">{t("login.subtitle")}</p>
+            {checkingUnlock ? (
+              <div className="flex flex-col items-center justify-center py-14 gap-3">
+                <Loader2 className="size-7 animate-spin text-slate-600" />
+                <p className="text-sm text-slate-500">{t("login.checkingUnlock")}</p>
               </div>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="username" className="text-gray-700">
-                    {t("login.username")}
-                  </Label>
-                  <Input
-                    id="username"
-                    name="username"
-                    autoComplete="username"
-                    placeholder={t("login.usernamePlaceholder")}
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    disabled={loading}
-                    className="h-10 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400"
-                  />
+            ) : (
+              <>
+                <div className="login-glass-card__head">
+                  <h1 className="login-form__title">{formHeading}</h1>
+                  <p className="login-form__subtitle">{formSubtitle}</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-gray-700">
-                    {t("login.password")}
-                  </Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                    className="h-10 border-gray-200 bg-white text-gray-900 placeholder:text-gray-400"
-                  />
-                </div>
+                {showPinForm ? (
+                  <form onSubmit={handlePinSubmit} className="space-y-5">
+                    <LoginField id="pin" label={t("login.pinLabel")}>
+                      <input
+                        id="pin"
+                        name="pin"
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="••••"
+                        maxLength={6}
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        disabled={loading}
+                        className="login-field__input login-field__input--glass login-field__input--pin"
+                        autoFocus
+                      />
+                    </LoginField>
 
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="h-10 w-full bg-[#ff6900] text-white hover:bg-[#e55f00]"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      {t("login.verifying")}
-                    </>
-                  ) : (
-                    t("login.submit")
-                  )}
-                </Button>
-              </form>
+                    <button
+                      type="submit"
+                      disabled={loading || pin.length < 4}
+                      className="login-btn-pill login-btn-pill--glass"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          {t("login.verifying")}
+                        </>
+                      ) : (
+                        t("login.pinSubmit")
+                      )}
+                    </button>
 
-              <p className="mt-6 text-center text-[12px] text-gray-400">
-                {t("common.contactAdmin")}
-              </p>
-            </div>
+                    <div className="login-form__links">
+                      <button type="button" onClick={switchToPasswordLogin} className="login-link">
+                        {t("login.usePassword")}
+                      </button>
+                      <button type="button" onClick={switchToOtherAccount} className="login-link login-link--muted">
+                        {t("login.otherAccount")}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handlePasswordSubmit} className="space-y-5">
+                    <LoginField id="username" label={t("login.username")}>
+                      <input
+                        id="username"
+                        name="username"
+                        autoComplete="username"
+                        placeholder={t("login.usernamePlaceholder")}
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        disabled={loading}
+                        className="login-field__input login-field__input--glass"
+                      />
+                    </LoginField>
+
+                    <LoginField id="password" label={t("login.password")}>
+                      <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={loading}
+                        className="login-field__input login-field__input--glass"
+                      />
+                    </LoginField>
+
+                    <button type="submit" disabled={loading} className="login-btn-pill login-btn-pill--glass">
+                      {loading ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          {t("login.verifying")}
+                        </>
+                      ) : (
+                        t("login.submit")
+                      )}
+                    </button>
+
+                    {unlockHint && (
+                      <div className="login-form__links">
+                        <button type="button" onClick={switchToOtherAccount} className="login-link login-link--muted">
+                          {t("login.otherAccount")}
+                        </button>
+                      </div>
+                    )}
+
+                    <p className="login-form__hint">{t("common.contactAdmin")}</p>
+                  </form>
+                )}
+              </>
+            )}
           </div>
+        </main>
 
-          <p className="relative z-10 px-6 pb-5 text-center text-[11px] text-gray-400 lg:text-left lg:px-10">
-            {t("common.internalNet")}
-          </p>
-        </div>
+        <footer className="login-footnote">{t("common.internalNet")}</footer>
       </div>
     </>
   );

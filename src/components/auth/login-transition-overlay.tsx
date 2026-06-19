@@ -2,24 +2,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 
-import { XiaomiSupergraphic } from "@/components/auth/xiaomi-supergraphic";
 import { getInitials } from "@/lib/auth";
 
-const ENTER_FLAG = "stockflow_enter";
-const FLIGHT_MS = 1850;
-const COMPLETE_MS = 2000;
+const LAND_FLAG = "stockflow_land";
+const LOADING_MS = 720;
+const SUCCESS_MS = 580;
+const FADE_MS = 480;
 
-export function setEnterAnimationFlag() {
-  sessionStorage.setItem(ENTER_FLAG, "1");
+export function markLoginLand() {
+  sessionStorage.setItem(LAND_FLAG, "1");
 }
 
-export function consumeEnterAnimationFlag(): boolean {
-  if (sessionStorage.getItem(ENTER_FLAG) !== "1") return false;
-  sessionStorage.removeItem(ENTER_FLAG);
+export function consumeLoginLand(): boolean {
+  if (sessionStorage.getItem(LAND_FLAG) !== "1") return false;
+  sessionStorage.removeItem(LAND_FLAG);
   return true;
 }
 
-type Phase = "boot" | "sync" | "welcome";
+type Phase = "loading" | "success" | "fade";
 
 export function LoginTransitionOverlay({
   displayName,
@@ -29,64 +29,92 @@ export function LoginTransitionOverlay({
   onComplete: () => void;
 }) {
   const { t } = useTranslation();
-  const [phase, setPhase] = useState<Phase>("boot");
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [mounted, setMounted] = useState(false);
   const completedRef = useRef(false);
 
   const finish = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
-    setEnterAnimationFlag();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => onComplete());
-    });
+    markLoginLand();
+    onComplete();
   }, [onComplete]);
 
   useEffect(() => {
-    const syncTimer = window.setTimeout(() => setPhase("sync"), 520);
-    const welcomeTimer = window.setTimeout(() => setPhase("welcome"), FLIGHT_MS);
-    const completeTimer = window.setTimeout(() => finish(), COMPLETE_MS);
+    const mountFrame = requestAnimationFrame(() => setMounted(true));
+
+    const successTimer = window.setTimeout(() => setPhase("success"), LOADING_MS);
+    const fadeTimer = window.setTimeout(() => setPhase("fade"), LOADING_MS + SUCCESS_MS);
+    const completeTimer = window.setTimeout(() => finish(), LOADING_MS + SUCCESS_MS + FADE_MS);
 
     return () => {
-      window.clearTimeout(syncTimer);
-      window.clearTimeout(welcomeTimer);
+      cancelAnimationFrame(mountFrame);
+      window.clearTimeout(successTimer);
+      window.clearTimeout(fadeTimer);
       window.clearTimeout(completeTimer);
     };
   }, [finish]);
 
-  const status =
-    phase === "boot"
-      ? t("login.transitionBoot")
-      : phase === "sync"
-        ? t("login.transitionSync")
-        : t("login.transitionWelcome", { name: displayName });
+  const shortName = displayName.trim().split(/\s+/).pop() || displayName;
 
   return (
     <div
-      className="mi-transition-root fixed inset-0 z-[100]"
+      className={[
+        "login-enter-overlay fixed inset-0 z-[100] grid place-items-center",
+        mounted && "login-enter-overlay--in",
+        phase === "fade" && "login-enter-overlay--fade",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       aria-live="polite"
-      aria-busy="true"
+      aria-busy={phase !== "fade"}
     >
-      <div className="mi-transition-camera">
-        <div className="mi-transition-camera-zoom">
-          <XiaomiSupergraphic variant="fullscreen" staticLayer />
+      <div
+        className={[
+          "login-enter-overlay__card",
+          phase === "success" && "login-enter-overlay__card--success",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className="login-enter-overlay__icon" aria-hidden>
+          {phase === "loading" ? (
+            <div className="login-enter-overlay__ring">
+              <div className="login-enter-overlay__ring-track" />
+              <div className="login-enter-overlay__ring-spin" />
+            </div>
+          ) : (
+            <div className="login-enter-overlay__badge">
+              <span className="login-enter-overlay__avatar">{getInitials(displayName)}</span>
+              <span className="login-enter-overlay__check">
+                <Check className="size-4" strokeWidth={2.8} />
+              </span>
+            </div>
+          )}
         </div>
-      </div>
 
-      <div className="mi-transition-ui">
-        {phase === "welcome" ? (
-          <div className="mi-transition-welcome-badge">
-            <Check className="size-5" strokeWidth={2.5} />
-          </div>
-        ) : null}
-        <p className="mi-transition-status" key={phase}>{status}</p>
-        {phase === "welcome" && (
-          <div className="mi-transition-user">
-            <span className="mi-transition-avatar">{getInitials(displayName)}</span>
-            <span>{t("login.transitionRedirect")}</span>
-          </div>
-        )}
-        <div className="mi-transition-progress">
-          <div className="mi-transition-progress-bar" />
+        <div className="login-enter-overlay__copy">
+          {phase === "loading" ? (
+            <p className="login-enter-overlay__text" key="loading">
+              {t("login.verifying")}
+            </p>
+          ) : (
+            <>
+              <p className="login-enter-overlay__welcome" key="welcome">
+                {t("login.transitionWelcome", { name: shortName })}
+              </p>
+              <p className="login-enter-overlay__hint">{t("login.transitionRedirect")}</p>
+            </>
+          )}
+        </div>
+
+        <div className="login-enter-overlay__progress" aria-hidden>
+          <div
+            className="login-enter-overlay__progress-bar"
+            style={{
+              animationDuration: `${LOADING_MS + SUCCESS_MS + FADE_MS}ms`,
+            }}
+          />
         </div>
       </div>
     </div>

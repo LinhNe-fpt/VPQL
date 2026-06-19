@@ -1,27 +1,752 @@
-/* ── Xiaomi supergraphic login ── */
+/* ── Stockflow login — procedural aurora backdrop + glass card ── */
 
 :root {
-  --mi-orange: #ff6900;
-  --mi-orange-light: #ff8534;
-  --mi-orange-pale: #fff4eb;
-  --mi-gray-bg: #f7f7f7;
-  --mi-gray-line: rgba(0, 0, 0, 0.06);
+  --login-ultra: #0038ff;
+  --login-ultra-light: #4d7cff;
+  --login-ultra-deep: #0029d6;
+
+  /* Aurora theme (overridden by login-theme.ts) */
+  --aurora-mesh-r1: rgba(255, 255, 255, 0.9);
+  --aurora-mesh-r2: rgba(196, 216, 255, 0.35);
+  --aurora-mesh-r3: rgba(212, 255, 240, 0.2);
+  --aurora-mesh-base: #e8eef6;
+  --aurora-mesh-mid: #f4f7fb;
+  --aurora-mesh-end: #dde6f0;
+  --aurora-halo-inner: rgba(255, 255, 255, 0.42);
+  --aurora-halo-mid: rgba(255, 255, 255, 0.18);
+  --aurora-halo-outer: rgba(255, 255, 255, 0.06);
+  --aurora-glass-stack: rgba(100, 116, 139, 0.07);
+  --aurora-stack-center: rgba(100, 116, 139, 0.05);
+  --aurora-glass-fill: rgba(255, 255, 255, 0.34);
+  --aurora-glass-tint: rgba(0, 56, 255, 0.06);
+  --aurora-glass-edge: rgba(255, 255, 255, 0.52);
+  --aurora-glass-shadow: rgba(51, 65, 85, 0.1);
+
+  /* Bloom timing — tuned for 60 Hz baseline */
+  --aurora-bloom-group: 1.65s;
+  --aurora-bloom-layer: 1.35s;
+  --aurora-bloom-halo: 1.75s;
+  --aurora-breathe: 16s;
+  --aurora-layer-stagger: 95ms;
+  --aurora-ease-bloom: cubic-bezier(0.19, 1, 0.22, 1);
+  --aurora-ease-soft: cubic-bezier(0.45, 0.05, 0.15, 1);
+  --aurora-collapse-group: 1.85s;
+  --aurora-collapse-layer: 1s;
+  --aurora-collapse-halo: 1.25s;
 }
 
-.xiaomi-login-root {
-  background: linear-gradient(165deg, #ffffff 0%, var(--mi-gray-bg) 48%, #f0f0f0 100%);
-  color: #1a1a1a;
+/* Màn ≥120 Hz: kéo dài timeline để có đủ frame, chuyển động mượt hơn */
+@media (update: fast) {
+  :root {
+    --aurora-bloom-group: 2.1s;
+    --aurora-bloom-layer: 1.75s;
+    --aurora-bloom-halo: 2.2s;
+    --aurora-breathe: 18s;
+    --aurora-layer-stagger: 115ms;
+  }
 }
 
-/* ── Supergraphic layers ── */
+/* ── Full-screen shell — gradient hiện ngay trước khi React hydrate ── */
+.login-shell--wallpaper {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, var(--aurora-mesh-r1) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 20% 80%, var(--aurora-mesh-r2) 0%, transparent 50%),
+    radial-gradient(ellipse 45% 35% at 85% 20%, var(--aurora-mesh-r3) 0%, transparent 45%),
+    linear-gradient(165deg, var(--aurora-mesh-base) 0%, var(--aurora-mesh-mid) 42%, var(--aurora-mesh-end) 100%);
+}
+
+/* ── Procedural backdrop (SVG flower) ── */
+.login-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: layout paint;
+  transform: translateZ(0);
+}
+
+.login-aurora__mesh {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, var(--aurora-mesh-r1) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 20% 80%, var(--aurora-mesh-r2) 0%, transparent 50%),
+    radial-gradient(ellipse 45% 35% at 85% 20%, var(--aurora-mesh-r3) 0%, transparent 45%),
+    linear-gradient(165deg, var(--aurora-mesh-base) 0%, var(--aurora-mesh-mid) 42%, var(--aurora-mesh-end) 100%);
+  opacity: 1;
+}
+
+.login-aurora__svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  content-visibility: hidden;
+}
+
+.login-aurora--ready .login-aurora__svg {
+  opacity: 1;
+  visibility: visible;
+  content-visibility: visible;
+  transition: opacity 0.25s ease;
+}
+
+/* Trạng thái nghỉ — chờ hydrate, không tạo compositor layer sớm */
+.login-aurora__flower {
+  transform-box: fill-box;
+  transform-origin: center;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0) scale3d(0.36, 0.36, 1);
+  isolation: isolate;
+}
+
+.login-aurora__layer {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0) scale3d(0.02, 0.02, 1);
+  mix-blend-mode: multiply;
+}
+
+.login-aurora__halo {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  width: min(82vw, 640px);
+  height: min(85vh, 760px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  filter: blur(12px);
+  background: radial-gradient(
+    ellipse 68% 58% at 50% 48%,
+    var(--aurora-halo-inner) 0%,
+    var(--aurora-halo-mid) 42%,
+    var(--aurora-halo-outer) 62%,
+    transparent 78%
+  );
+}
+
+/* Bloom chỉ chạy sau khi trang ổn định */
+.login-aurora--ready .login-aurora__flower {
+  will-change: transform;
+  animation:
+    login-aurora-bloom-group var(--aurora-bloom-group) var(--aurora-ease-bloom) forwards,
+    login-aurora-breathe var(--aurora-breathe) var(--aurora-ease-soft) var(--aurora-bloom-group) infinite alternate;
+}
+
+.login-aurora--ready .login-aurora__layer {
+  will-change: transform, opacity;
+  animation: login-aurora-layer-bloom var(--aurora-bloom-layer) var(--aurora-ease-bloom) forwards;
+  animation-delay: calc(var(--layer-delay, 0) * var(--aurora-layer-stagger));
+}
+
+.login-aurora--ready .login-aurora__halo {
+  will-change: opacity;
+  animation:
+    login-aurora-halo-bloom var(--aurora-bloom-halo) var(--aurora-ease-soft) forwards,
+    login-aurora-halo 10s var(--aurora-ease-soft) var(--aurora-bloom-halo) infinite alternate;
+}
+
+.login-aurora__vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 45%, transparent 35%, rgba(148, 163, 184, 0.12) 100%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.15), transparent 30%, transparent 70%, rgba(15, 23, 42, 0.04));
+  pointer-events: none;
+}
+
+@keyframes login-aurora-bloom-group {
+  0% {
+    transform: translate3d(0, 0, 0) scale3d(0.36, 0.36, 1);
+  }
+  12% {
+    transform: translate3d(0, 0, 0) scale3d(0.58, 0.58, 1);
+  }
+  24% {
+    transform: translate3d(0, 0, 0) scale3d(0.76, 0.76, 1);
+  }
+  36% {
+    transform: translate3d(0, 0, 0) scale3d(0.9, 0.9, 1);
+  }
+  48% {
+    transform: translate3d(0, 0, 0) scale3d(0.98, 0.98, 1);
+  }
+  60% {
+    transform: translate3d(0, 0, 0) scale3d(1.038, 1.038, 1);
+  }
+  72% {
+    transform: translate3d(0, 0, 0) scale3d(1.018, 1.018, 1);
+  }
+  84% {
+    transform: translate3d(0, 0, 0) scale3d(1.004, 1.004, 1);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+@keyframes login-aurora-layer-bloom {
+  0% {
+    transform: translate3d(0, 0, 0) scale3d(0.02, 0.02, 1);
+    opacity: 0;
+  }
+  18% {
+    opacity: calc(var(--layer-opacity, 0.9) * 0.35);
+  }
+  42% {
+    transform: translate3d(0, 0, 0) scale3d(0.72, 0.72, 1);
+    opacity: calc(var(--layer-opacity, 0.9) * 0.78);
+  }
+  68% {
+    transform: translate3d(0, 0, 0) scale3d(0.96, 0.96, 1);
+    opacity: var(--layer-opacity, 0.9);
+  }
+  86% {
+    transform: translate3d(0, 0, 0) scale3d(1.018, 1.018, 1);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+    opacity: var(--layer-opacity, 0.9);
+  }
+}
+
+@keyframes login-aurora-halo-bloom {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.12;
+  }
+  70% {
+    opacity: 0.32;
+  }
+  100% {
+    opacity: 0.38;
+  }
+}
+
+@keyframes login-aurora-breathe {
+  0% {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+  50% {
+    transform: translate3d(0, 0, 0) scale3d(1.028, 1.028, 1);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+@keyframes login-aurora-halo {
+  from {
+    opacity: 0.28;
+  }
+  to {
+    opacity: 0.42;
+  }
+}
+
+/* ── Logout: hoa thu nhỏ từ trong ra ngoài ── */
+.logout-aurora-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, var(--aurora-mesh-r1) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 20% 80%, var(--aurora-mesh-r2) 0%, transparent 50%),
+    radial-gradient(ellipse 45% 35% at 85% 20%, var(--aurora-mesh-r3) 0%, transparent 45%),
+    linear-gradient(165deg, var(--aurora-mesh-base) 0%, var(--aurora-mesh-mid) 42%, var(--aurora-mesh-end) 100%);
+}
+
+.logout-aurora-shell--fade {
+  animation: logout-aurora-shell-out 0.42s ease forwards;
+  pointer-events: none;
+}
+
+.logout-aurora-shell__copy {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.logout-aurora-shell__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--login-ultra) 55%, #64748b);
+}
+
+.logout-aurora-shell__title {
+  margin-top: 0.65rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1e293b;
+  text-shadow: 0 1px 16px rgba(255, 255, 255, 0.85);
+}
+
+.logout-aurora-shell__hint {
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.login-aurora--collapse {
+  position: fixed;
+  inset: 0;
+}
+
+.login-aurora--collapse .login-aurora__svg {
+  opacity: 1;
+  visibility: visible;
+  content-visibility: visible;
+}
+
+.login-aurora--collapse .login-aurora__flower {
+  transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+}
+
+.login-aurora--collapse .login-aurora__layer {
+  opacity: var(--layer-opacity, 0.9);
+  transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+}
+
+.login-aurora--collapse .login-aurora__halo {
+  opacity: 1;
+}
+
+.login-aurora--collapse-run .login-aurora__flower {
+  will-change: transform, opacity;
+  animation: login-aurora-collapse-group var(--aurora-collapse-group) var(--aurora-ease-bloom) forwards;
+}
+
+.login-aurora--collapse-run .login-aurora__layer {
+  will-change: transform, opacity;
+  animation: login-aurora-layer-collapse var(--aurora-collapse-layer) var(--aurora-ease-bloom) forwards;
+  animation-delay: calc(var(--layer-delay, 0) * var(--aurora-layer-stagger));
+  mix-blend-mode: normal;
+}
+
+.login-aurora--collapse-run .login-aurora__petal {
+  mix-blend-mode: normal;
+}
+
+.login-aurora--collapse-run .login-aurora__halo {
+  animation: login-aurora-halo-collapse var(--aurora-collapse-halo) var(--aurora-ease-soft) forwards;
+}
+
+.login-aurora--collapse-run .login-aurora__mesh {
+  animation: login-aurora-mesh-collapse var(--aurora-collapse-group) var(--aurora-ease-soft) forwards;
+}
+
+@keyframes login-aurora-collapse-group {
+  0% {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+    opacity: 1;
+  }
+  28% {
+    transform: translate3d(0, 0, 0) scale3d(0.88, 0.88, 1);
+  }
+  58% {
+    transform: translate3d(0, 0, 0) scale3d(0.52, 0.52, 1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(0.04, 0.04, 1);
+    opacity: 0;
+  }
+}
+
+@keyframes login-aurora-layer-collapse {
+  0% {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+    opacity: var(--layer-opacity, 0.9);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(0.01, 0.01, 1);
+    opacity: 0;
+  }
+}
+
+@keyframes login-aurora-halo-collapse {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes login-aurora-mesh-collapse {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes logout-aurora-shell-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-aurora--ready .login-aurora__mesh,
+  .login-aurora--ready .login-aurora__flower,
+  .login-aurora--ready .login-aurora__layer,
+  .login-aurora--ready .login-aurora__halo {
+    animation: none !important;
+    will-change: auto;
+  }
+
+  .login-aurora__svg,
+  .login-aurora--ready .login-aurora__svg {
+    opacity: 1;
+    visibility: visible;
+    content-visibility: visible;
+  }
+
+  .login-aurora__flower {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+
+  .login-aurora__layer {
+    opacity: var(--layer-opacity, 0.9);
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+
+  .login-aurora__halo {
+    opacity: 0.38;
+  }
+
+  .login-aurora--collapse-run .login-aurora__flower,
+  .login-aurora--collapse-run .login-aurora__layer,
+  .login-aurora--collapse-run .login-aurora__halo,
+  .login-aurora--collapse-run .login-aurora__mesh,
+  .logout-aurora-shell--in {
+    animation: none !important;
+  }
+
+  .logout-aurora-shell--in {
+    opacity: 1;
+  }
+}
+
+.login-topbar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.25rem;
+}
+
+.login-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .login-topbar {
+    padding: 1.25rem 1.75rem;
+  }
+}
+
+.login-center {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.login-glass-card {
+  position: relative;
+  width: min(92vw, 400px);
+  padding: 1.75rem 1.5rem 1.5rem;
+  border-radius: 1.625rem;
+  background:
+    linear-gradient(
+      168deg,
+      var(--aurora-glass-fill) 0%,
+      color-mix(in srgb, var(--aurora-glass-fill) 88%, var(--aurora-glass-tint)) 100%
+    );
+  border: 1px solid var(--aurora-glass-edge);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--aurora-glass-edge) 90%, transparent) inset,
+    0 28px 64px var(--aurora-glass-shadow),
+    0 8px 24px color-mix(in srgb, var(--aurora-glass-shadow) 65%, transparent);
+  backdrop-filter: blur(48px) saturate(1.35);
+  -webkit-backdrop-filter: blur(48px) saturate(1.35);
+}
+
+.login-glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.06) 42%,
+    transparent 62%
+  );
+  pointer-events: none;
+}
+
+.login-glass-card::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(1.625rem - 1px);
+  border: 1px solid color-mix(in srgb, var(--aurora-glass-edge) 55%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .login-glass-card {
+    padding: 2rem 1.85rem 1.75rem;
+  }
+}
+
+.login-glass-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.login-glass-card__brand {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--aurora-glass-edge) 45%, transparent);
+}
+
+.login-glass-card__logo {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, var(--login-ultra-light), var(--login-ultra));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--login-ultra) 28%, transparent);
+}
+
+.login-glass-card__name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.login-glass-card__edition {
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.login-glass-card__head {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 1.5rem;
+}
+
+.login-footnote {
+  position: relative;
+  z-index: 2;
+  padding: 0 1.25rem 1.25rem;
+  text-align: center;
+  font-size: 0.68rem;
+  color: rgba(15, 23, 42, 0.45);
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.8);
+}
+
+.login-form__title {
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: #0f172a;
+}
+
+.login-form__subtitle {
+  margin-top: 0.35rem;
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.login-field__label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.login-field__input {
+  width: 100%;
+  height: 3rem;
+  padding: 0 1rem;
+  border-radius: 0.75rem;
+  border: 1.5px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 0.9rem;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.login-field__input--glass {
+  background: color-mix(in srgb, var(--aurora-glass-fill) 78%, transparent);
+  border-color: color-mix(in srgb, var(--aurora-glass-edge) 70%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 2px 10px color-mix(in srgb, var(--aurora-glass-shadow) 35%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.login-field__input::placeholder {
+  color: #94a3b8;
+}
+
+.login-field__input:focus {
+  border-color: color-mix(in srgb, var(--login-ultra) 42%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--login-ultra) 14%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.55) inset;
+  background: color-mix(in srgb, var(--aurora-glass-fill) 92%, white);
+}
+
+.login-field__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-field__input--pin {
+  text-align: center;
+  font-size: 1.15rem;
+  letter-spacing: 0.35em;
+  font-family: ui-monospace, monospace;
+}
+
+.login-btn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 3rem;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+
+.login-btn-pill--glass {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--login-ultra) 88%, #334155) 0%,
+    color-mix(in srgb, var(--login-ultra) 72%, #1e293b) 100%
+  );
+  color: #ffffff;
+  box-shadow:
+    0 10px 26px color-mix(in srgb, var(--login-ultra) 26%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
+.login-btn-pill--glass:hover:not(:disabled) {
+  box-shadow:
+    0 14px 32px color-mix(in srgb, var(--login-ultra) 32%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.16) inset;
+  transform: translateY(-1px);
+}
+
+.login-btn-pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--login-ultra);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.login-link:hover {
+  text-decoration: underline;
+}
+
+.login-link--muted {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.login-link--muted:hover {
+  color: #334155;
+}
+
+.login-form__links {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.login-form__hint {
+  margin-top: 1.25rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* Legacy shell hook (unused on wallpaper layout) */
+.login-shell {
+  min-height: 100vh;
+}
+
+/* ── Supergraphic (login transition only) ── */
 .xiaomi-supergraphic {
   position: absolute;
   pointer-events: none;
   overflow: hidden;
-}
-
-.xiaomi-supergraphic--scene {
-  inset: 0;
+  z-index: 0;
 }
 
 .xiaomi-supergraphic--fullscreen {
@@ -69,8 +794,8 @@
 .xiaomi-supergraphic__tile {
   position: absolute;
   border-radius: 22%;
-  border: 2px solid rgba(255, 105, 0, 0.14);
-  background: linear-gradient(145deg, rgba(255, 105, 0, 0.07), rgba(255, 105, 0, 0.02));
+  border: 2px solid rgba(0, 56, 255, 0.14);
+  background: linear-gradient(145deg, rgba(0, 56, 255, 0.07), rgba(0, 56, 255, 0.02));
   animation: mi-tile-float 12s ease-in-out infinite;
 }
 
@@ -79,7 +804,6 @@
   height: 72px;
   left: 14%;
   top: 22%;
-  animation-delay: 0s;
 }
 
 .xiaomi-supergraphic__tile--2 {
@@ -112,27 +836,12 @@
   border-radius: 50%;
   background: radial-gradient(
     circle at 35% 32%,
-    rgba(255, 180, 120, 0.35) 0%,
-    rgba(255, 105, 0, 0.12) 42%,
+    rgba(77, 124, 255, 0.35) 0%,
+    rgba(0, 56, 255, 0.12) 42%,
     transparent 68%
   );
   filter: blur(1px);
   animation: mi-orb-glow 8s ease-in-out infinite alternate;
-}
-
-@media (min-width: 1024px) {
-  .xiaomi-supergraphic__orb {
-    left: 6%;
-    width: min(42vw, 400px);
-    height: min(42vw, 400px);
-  }
-
-  .xiaomi-supergraphic__tile--1 {
-    width: 96px;
-    height: 96px;
-    left: 18%;
-    top: 18%;
-  }
 }
 
 @keyframes mi-band-drift {
@@ -171,166 +880,206 @@
   animation: none;
 }
 
-.xiaomi-login-scene {
-  position: absolute;
-  inset: 0;
+/* ── Login enter — loading → welcome → fade ── */
+.login-enter-overlay {
+  background: linear-gradient(
+    165deg,
+    rgba(244, 247, 252, 0.97) 0%,
+    rgba(255, 255, 255, 0.98) 45%,
+    rgba(232, 238, 255, 0.96) 100%
+  );
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  transition: opacity 0.48s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.login-enter-overlay--in {
+  opacity: 1;
+}
+
+.login-enter-overlay--fade {
+  opacity: 0;
   pointer-events: none;
 }
 
-.xiaomi-login-card {
-  padding: 2rem;
-  border-radius: 1.25rem;
-  border: 1px solid var(--mi-gray-line);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(16px);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 16px 48px -12px rgba(0, 0, 0, 0.1);
-}
-
-.xiaomi-login-logo {
-  background: var(--mi-orange);
-  box-shadow: 0 8px 24px -6px rgba(255, 105, 0, 0.45);
-}
-
-/* ── Login transition (Mi supergraphic flight) ── */
-.mi-transition-root {
-  background: linear-gradient(165deg, #ffffff 0%, var(--mi-gray-bg) 100%);
-  overflow: hidden;
-  animation: mi-t-root-in 0.22s ease-out both;
-}
-
-.mi-transition-camera {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  width: min(88vw, 460px);
-  height: min(88vw, 460px);
-  transform: translate3d(-50%, -50%, 0);
-  will-change: transform;
-  backface-visibility: hidden;
-  isolation: isolate;
-  animation: mi-t-pan 1.85s cubic-bezier(0.22, 0.85, 0.32, 1) forwards;
-}
-
-.mi-transition-camera-zoom {
-  width: 100%;
-  height: 100%;
-  transform-origin: center center;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-  animation: mi-t-zoom 1.85s cubic-bezier(0.22, 0.85, 0.32, 1) forwards;
-}
-
-.mi-transition-camera .xiaomi-supergraphic {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.mi-transition-ui {
-  position: absolute;
-  bottom: 12%;
-  left: 50%;
-  transform: translateX(-50%);
+.login-enter-overlay__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
   width: min(90vw, 320px);
-  text-align: center;
-  z-index: 20;
+  padding: 2rem 1.75rem 1.5rem;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  border: 1px solid rgba(0, 56, 255, 0.1);
+  box-shadow:
+    0 4px 6px rgba(0, 56, 255, 0.04),
+    0 24px 56px -16px rgba(0, 41, 214, 0.18);
+  transform: translateY(8px) scale(0.98);
+  opacity: 0;
+  animation: login-enter-card-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.05s forwards;
+  transition: box-shadow 0.3s ease;
 }
 
-.mi-transition-status {
+.login-enter-overlay--in .login-enter-overlay__card--success {
+  box-shadow:
+    0 4px 6px rgba(0, 56, 255, 0.06),
+    0 28px 64px -12px rgba(0, 56, 255, 0.22);
+}
+
+.login-enter-overlay__icon {
+  position: relative;
+  width: 4.5rem;
+  height: 4.5rem;
+  display: grid;
+  place-items: center;
+}
+
+.login-enter-overlay__ring {
+  position: relative;
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.login-enter-overlay__ring-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 56, 255, 0.12);
+}
+
+.login-enter-overlay__ring-spin {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: var(--login-ultra);
+  border-right-color: rgba(0, 56, 255, 0.35);
+  animation: login-enter-spin 0.85s linear infinite;
+}
+
+.login-enter-overlay__badge {
+  position: relative;
+  width: 3.5rem;
+  height: 3.5rem;
+  animation: login-enter-badge-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.login-enter-overlay__avatar {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--login-ultra-light), var(--login-ultra));
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 24px rgba(0, 56, 255, 0.35);
+}
+
+.login-enter-overlay__check {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.45);
+  animation: login-enter-check-pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+
+.login-enter-overlay__copy {
+  text-align: center;
+  min-height: 3rem;
+}
+
+.login-enter-overlay__text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #64748b;
+  animation: login-enter-text-in 0.3s ease both;
+}
+
+.login-enter-overlay__welcome {
   font-size: 1.05rem;
   font-weight: 600;
-  color: #1a1a1a;
-  letter-spacing: 0.02em;
-  animation: mi-t-status-in 0.35s var(--ease-fluid) both;
+  color: #0a192f;
+  letter-spacing: -0.01em;
+  animation: login-enter-text-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.mi-transition-welcome-badge {
-  margin: 0 auto 0.75rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: var(--mi-orange);
-  color: white;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 24px rgba(255, 105, 0, 0.45);
-  animation: mi-t-badge 0.4s var(--ease-fluid) both;
+.login-enter-overlay__hint {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  animation: login-enter-text-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
 }
 
-.mi-transition-user {
-  margin-top: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: rgba(0, 0, 0, 0.5);
-}
-
-.mi-transition-avatar {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 50%;
-  background: rgba(255, 105, 0, 0.12);
-  border: 1px solid rgba(255, 105, 0, 0.28);
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: var(--mi-orange);
-}
-
-.mi-transition-progress {
-  margin-top: 1rem;
+.login-enter-overlay__progress {
+  width: 100%;
   height: 3px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 56, 255, 0.08);
   overflow: hidden;
 }
 
-.mi-transition-progress-bar {
+.login-enter-overlay__progress-bar {
   height: 100%;
-  width: 0%;
+  width: 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ff8534, var(--mi-orange), #ff6900);
-  will-change: width;
-  animation: mi-t-progress 2s cubic-bezier(0.22, 0.85, 0.32, 1) forwards;
+  background: linear-gradient(90deg, var(--login-ultra-deep), var(--login-ultra), var(--login-ultra-light));
+  animation: login-enter-progress linear forwards;
 }
 
-@keyframes mi-t-root-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+.login-land-in {
+  animation: login-land-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Pan sang trái — tách khỏi scale để GPU mượt hơn */
-@keyframes mi-t-pan {
-  0% {
-    transform: translate3d(-50%, -50%, 0);
-  }
-  100% {
-    transform: translate3d(-108%, -50%, 0);
-  }
-}
-
-/* Zoom nhẹ + fade — không blur, không scale cực lớn */
-@keyframes mi-t-zoom {
-  0% {
-    transform: scale3d(1, 1, 1);
-    opacity: 1;
-  }
-  55% {
-    transform: scale3d(2.2, 2.2, 1);
-    opacity: 1;
-  }
-  100% {
-    transform: scale3d(4.2, 4.2, 1);
+@keyframes login-enter-card-in {
+  from {
     opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes mi-t-status-in {
+@keyframes login-enter-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes login-enter-badge-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes login-enter-check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes login-enter-text-in {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -341,14 +1090,14 @@
   }
 }
 
-@keyframes mi-t-progress {
+@keyframes login-enter-progress {
   from { width: 0%; }
   to   { width: 100%; }
 }
 
-@keyframes mi-t-badge {
-  from { transform: scale(0.5); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+@keyframes login-land-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -359,14 +1108,23 @@
   .xiaomi-supergraphic__arc,
   .xiaomi-supergraphic__arc--2,
   .xiaomi-supergraphic__tile,
-  .xiaomi-supergraphic__orb,
-  .mi-transition-root,
-  .mi-transition-camera,
-  .mi-transition-camera-zoom {
+  .xiaomi-supergraphic__orb {
     animation: none;
   }
 
-  .mi-transition-camera {
-    opacity: 0;
+  .login-enter-overlay,
+  .login-enter-overlay--fade,
+  .login-enter-overlay__card,
+  .login-enter-overlay__badge,
+  .login-enter-overlay__check,
+  .login-enter-overlay__text,
+  .login-enter-overlay__welcome,
+  .login-enter-overlay__hint,
+  .login-enter-overlay__progress-bar,
+  .login-land-in {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
